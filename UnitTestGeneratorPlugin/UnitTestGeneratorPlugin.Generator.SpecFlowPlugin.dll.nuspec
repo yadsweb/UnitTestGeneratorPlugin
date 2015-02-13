@@ -12,4 +12,7 @@
       <dependency id="SampleDependency" version="1.0" />
     </dependencies>
   </metadata>
+ <files>
+	<file src="bin\**\*.*" />
+ </files>
 </package>
