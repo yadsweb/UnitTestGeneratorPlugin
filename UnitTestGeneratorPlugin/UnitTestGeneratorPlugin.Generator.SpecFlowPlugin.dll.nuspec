@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <package >
   <metadata>
-    <id>UnitTestGeneratorPlugin.Generator.SpecFlowPlugin.dll</id>
+    <id>UnitTestGeneratorPlugin.Generator.SpecFlowPlugin</id>
     <version>1.0.0</version>
     <authors>USER</authors>
     <owners>USER</owners>
