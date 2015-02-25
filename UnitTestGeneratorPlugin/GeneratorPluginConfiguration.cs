@@ -14,7 +14,7 @@ namespace UnitTestGeneratorPlugin.Generator.SpecFlowPlugin
             }
             return _config;
         }
-        public static ConfigurationSection GetConfig(Configuration configuration)
+        public static GeneratorPluginConfiguration GetConfig(Configuration configuration)
         {
             if (_config == null)
             {
