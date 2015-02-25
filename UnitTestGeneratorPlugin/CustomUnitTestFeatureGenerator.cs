@@ -33,8 +33,8 @@ namespace UnitTestGeneratorPlugin.Generator.SpecFlowPlugin
         public new CodeNamespace GenerateUnitTestFixture(Feature feature, string testClassName, string targetNamespace)
         {
 
-            //var text = new StringBuilder();
-            //text.Append(" directory: " + Directory.GetCurrentDirectory());
+            var text = new StringBuilder();
+            text.AppendLine(" directory: " + Directory.GetCurrentDirectory());
 
             var fileMap = new ExeConfigurationFileMap
             {
@@ -43,7 +43,7 @@ namespace UnitTestGeneratorPlugin.Generator.SpecFlowPlugin
 
             var appConfig = ConfigurationManager.OpenMappedExeConfiguration(fileMap, ConfigurationUserLevel.None);
 
-            //text.Append(" Custom.plugin.generator.configuration value: " + appConfig.AppSettings.Settings["Custom.plugin.generator.configuration"].Value);
+            text.AppendLine(" Custom.plugin.generator.configuration value: " + appConfig.AppSettings.Settings["Custom.plugin.generator.configuration"].Value);
 
             if (appConfig.AppSettings.Settings["Custom.plugin.generator.configuration"] == null)
             {
@@ -57,11 +57,15 @@ namespace UnitTestGeneratorPlugin.Generator.SpecFlowPlugin
             {
                 try
                 {
-                    //text.AppendLine(appConfig.Sections["GeneratorPluginConfiguration"].CurrentConfiguration.ToString());
-                    //text.AppendLine("--------===-----------");
-                    var additionalCategoryAttributes = GeneratorPluginConfiguration.GetConfig(appConfig);
-                    //text.AppendLine("-------------------------");
-                    var additionalCategoryAttributes1 = ((GeneratorPluginConfiguration)additionalCategoryAttributes).AdditionalCategoryAttributes;
+                    text.AppendLine(appConfig.Sections["GeneratorPluginConfiguration"].CurrentConfiguration.ToString());
+                    text.AppendLine("--------===-----------");
+                    var conf = GeneratorPluginConfiguration.GetConfig(appConfig);
+                    text.AppendLine("-------------------------");
+                    var att = conf.AdditionalCategoryAttributes;
+                    foreach (var a in att)
+                    {
+                        text.AppendLine("++++++++++ " + a);
+                    }
                     //text.AppendLine("++++++++++");
                     //var additionalTestCaseAttributes =
                     //    GeneratorPluginConfiguration.GetConfig(appConfig).AdditionalTestCaseAttributes;
@@ -88,11 +92,11 @@ namespace UnitTestGeneratorPlugin.Generator.SpecFlowPlugin
                 catch (Exception e)
                 {
 
-                    //text.Append(e.ToString());
+                    text.Append(e.ToString());
                 }
             }
-           
-            //File.WriteAllText(@"C:\log.txt", text.ToString());
+
+            File.WriteAllText(@"C:\log.txt", text.ToString());
             return base.GenerateUnitTestFixture(feature, testClassName, targetNamespace);
         }
 
@@ -106,6 +110,10 @@ namespace UnitTestGeneratorPlugin.Generator.SpecFlowPlugin
             }
             _uniqueIdList.Add(uniqueId);
             return uniqueId;
+        }
+
+        public void test()
+        {
         }
     }
 }
