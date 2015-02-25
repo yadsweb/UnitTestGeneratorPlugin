@@ -16,7 +16,11 @@ namespace UnitTestGeneratorPlugin.Generator.SpecFlowPlugin
         }
         public static ConfigurationSection GetConfig(Configuration configuration)
         {
-            return configuration.GetSection("GeneratorPluginConfiguration");
+            if (_config == null)
+            {
+                _config = (GeneratorPluginConfiguration)configuration.GetSection("GeneratorPluginConfiguration");
+            }
+            return _config;
         }
 
         [ConfigurationProperty("AdditionalCategoryAttributes")]
