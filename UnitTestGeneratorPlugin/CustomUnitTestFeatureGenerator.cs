@@ -57,6 +57,7 @@ namespace UnitTestGeneratorPlugin.Generator.SpecFlowPlugin
             {
                 try
                 {
+                    text.AppendLine("Start loading the configuration -------------");
                     var configurationSection = GeneratorPluginConfiguration.GetConfig(appConfig);
                     var additionalCategoryAttributes = configurationSection.AdditionalCategoryAttributes;
                     var additionalTestCaseAttributes = configurationSection.AdditionalTestCaseAttributes;
@@ -65,6 +66,7 @@ namespace UnitTestGeneratorPlugin.Generator.SpecFlowPlugin
                     var categoriesFilter = configurationSection.AdditionalCategoryAttributeFilter;
                     var testcaseattributesFilter = configurationSection.AdditionalTestCaseAttributeFilter;
                     var stepsFilter = configurationSection.StepFilter;
+                    text.AppendLine("end loading the configuration -------------");
 
                     foreach (var scenario in feature.Scenarios)
                     {
