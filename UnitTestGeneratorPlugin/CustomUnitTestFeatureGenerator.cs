@@ -43,7 +43,7 @@ namespace UnitTestGeneratorPlugin.Generator.SpecFlowPlugin
 
             var appConfig = ConfigurationManager.OpenMappedExeConfiguration(fileMap, ConfigurationUserLevel.None);
 
-            text.AppendLine(" Custom.plugin.generator.configuration value: " + appConfig.AppSettings.Settings["Custom.plugin.generator.configuration"].Value);
+            text.AppendLine(" Custom.plugin.generator.configuration value: " + appConfig.AppSettings.Settings["Custom.plugin.generator.configuration"]);
 
             if (appConfig.AppSettings.Settings["Custom.plugin.generator.configuration"] == null)
             {
