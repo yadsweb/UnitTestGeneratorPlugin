@@ -56,15 +56,46 @@ namespace UnitTestGeneratorPlugin.Generator.SpecFlowPlugin
             }
         }
 
-        [ConfigurationProperty("TestCaseAttributeFilter")]
-        public TestCaseAttributeFilter TestCaseAttributeFilter
+        [ConfigurationProperty("FilterAssembly")]
+        public FilterAssembly FilterAssembly
         {
-            get { return this["TestCaseAttributeFilter"] as TestCaseAttributeFilter; }
+            get { return this["FilterAssembly"] as FilterAssembly; }
+        }
+
+        [ConfigurationProperty("AdditionalCategoryAttributeFilter")]
+        public AdditionalCategoryAttributeFilter AdditionalCategoryAttributeFilter
+        {
+            get { return this["AdditionalCategoryAttributeFilter"] as AdditionalCategoryAttributeFilter; }
+        }
+
+        [ConfigurationProperty("AdditionalTestCaseAttributeFilter")]
+        public AdditionalTestCaseAttributeFilter AdditionalTestCaseAttributeFilter
+        {
+            get { return this["AdditionalTestCaseAttributeFilter"] as AdditionalTestCaseAttributeFilter; }
+        }
+
+        [ConfigurationProperty("StepFilter")]
+        public StepFilter StepFilter
+        {
+            get { return this["StepFilter"] as StepFilter; }
         }
 
     }
 
-    public class TestCaseAttributeFilter : ConfigurationElement
+    public class FilterAssembly : ConfigurationElement
+    {
+
+        [ConfigurationProperty("filepath", IsRequired = true)]
+        public string Filepath
+        {
+            get
+            {
+                return this["filepath"] as string;
+            }
+        }
+    }
+
+    public class AdditionalCategoryAttributeFilter : ConfigurationElement
     {
 
         [ConfigurationProperty("classname", IsRequired = true)]
@@ -75,12 +106,54 @@ namespace UnitTestGeneratorPlugin.Generator.SpecFlowPlugin
                 return this["classname"] as string;
             }
         }
-        [ConfigurationProperty("namespace", IsRequired = true)]
-        public string Namespace
+        [ConfigurationProperty("method", IsRequired = true)]
+        public string Method
         {
             get
             {
-                return this["namespace"] as string;
+                return this["method"] as string;
+            }
+        }
+    }
+
+    public class AdditionalTestCaseAttributeFilter : ConfigurationElement
+    {
+
+        [ConfigurationProperty("classname", IsRequired = true)]
+        public string Classname
+        {
+            get
+            {
+                return this["classname"] as string;
+            }
+        }
+        [ConfigurationProperty("method", IsRequired = true)]
+        public string Method
+        {
+            get
+            {
+                return this["method"] as string;
+            }
+        }
+    }
+
+    public class StepFilter : ConfigurationElement
+    {
+
+        [ConfigurationProperty("classname", IsRequired = true)]
+        public string Classname
+        {
+            get
+            {
+                return this["classname"] as string;
+            }
+        }
+        [ConfigurationProperty("method", IsRequired = true)]
+        public string Method
+        {
+            get
+            {
+                return this["method"] as string;
             }
         }
     }

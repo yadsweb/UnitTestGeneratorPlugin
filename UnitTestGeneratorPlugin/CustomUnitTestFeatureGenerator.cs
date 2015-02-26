@@ -57,37 +57,72 @@ namespace UnitTestGeneratorPlugin.Generator.SpecFlowPlugin
             {
                 try
                 {
-                    text.AppendLine(appConfig.Sections["GeneratorPluginConfiguration"].CurrentConfiguration.ToString());
-                    text.AppendLine("--------===-----------");
-                    var conf = GeneratorPluginConfiguration.GetConfig(appConfig);
-                    text.AppendLine("-------------------------");
-                    var att = conf.AdditionalCategoryAttributes;
-                    foreach (var a in att)
+                    var configurationSection = GeneratorPluginConfiguration.GetConfig(appConfig);
+                    var additionalCategoryAttributes = configurationSection.AdditionalCategoryAttributes;
+                    var additionalTestCaseAttributes = configurationSection.AdditionalTestCaseAttributes;
+                    var steps = configurationSection.Steps;
+                    var filterAssembly = configurationSection.FilterAssembly;
+                    var categoriesFilter = configurationSection.AdditionalCategoryAttributeFilter;
+                    var testcaseattributesFilter = configurationSection.AdditionalTestCaseAttributeFilter;
+                    var stepsFilter = configurationSection.StepFilter;
+
+                    foreach (var scenario in feature.Scenarios)
                     {
-                        text.AppendLine("++++++++++ " + a);
+                        scenario.Tags = scenario.Tags ?? new Tags();
+
+                        text.AppendLine("AdditionalCategoryAttribute are: " + additionalCategoryAttributes.Count);
+
+                        if (filterAssembly != null)
+                        {
+                            text.AppendLine("filter assembly is not null file path is: " + filterAssembly.Filepath);
+
+                            var assemblyContainingFilter = Assembly.LoadFrom(filterAssembly.Filepath);
+
+                            if (categoriesFilter != null)
+                            {
+                                text.AppendLine("categories filter is set hava classname : " + categoriesFilter.Classname + "and method" + categoriesFilter.Method);
+
+                                var rawCategories = new List<AdditionalCategoryAttribute>();
+                                for (int i = 0; i < additionalCategoryAttributes.Count; i++)
+                                {
+                                    text.AppendLine("adding categor with type: " + additionalCategoryAttributes[i].Type + "and value" + additionalCategoryAttributes[i].Value);
+                                    rawCategories.Add(additionalCategoryAttributes[i]);
+                                }
+                                var filterType = assemblyContainingFilter.GetType(categoriesFilter.Classname);
+                                var filteredCategories = (List<AdditionalCategoryAttribute>)filterType.InvokeMember(categoriesFilter.Method, BindingFlags.InvokeMethod | BindingFlags.Instance | BindingFlags.Public, null , filterType, new object[] { rawCategories });
+                                if (filteredCategories.Count > 0)
+                                {
+                                    foreach (AdditionalCategoryAttribute category in filteredCategories)
+                                    {
+                                        scenario.Tags.Add(category.Type.Contains("unique")
+                                            ? new Tag(category.Value + GenerateuniqueId())
+                                            : new Tag(category.Value));
+                                    }
+                                }
+                                else
+                                {
+                                    text.AppendLine("Filtered categories are empty");
+                                }
+                            }
+                            else
+                            {
+                                if (additionalCategoryAttributes.Count > 0)
+                                {
+                                    for (int counter = 0; counter < additionalCategoryAttributes.Count; counter++)
+                                    {
+                                        scenario.Tags.Add(additionalCategoryAttributes[counter].Type.Contains("unique")
+                                            ? new Tag(additionalCategoryAttributes[counter].Value + GenerateuniqueId())
+                                            : new Tag(additionalCategoryAttributes[counter].Value));
+                                    }
+                                }
+                                else
+                                {
+                                    text.AppendLine("no categories which need to be added to unit tests found");
+                                }
+                            }
+
+                        }
                     }
-                    //text.AppendLine("++++++++++");
-                    //var additionalTestCaseAttributes =
-                    //    GeneratorPluginConfiguration.GetConfig(appConfig).AdditionalTestCaseAttributes;
-                    //var additionalStesps =
-                    //    GeneratorPluginConfiguration.GetConfig(appConfig).AdditionalCategoryAttributes;
-
-                    //foreach (var scenario in feature.Scenarios)
-                    //{
-                    //    scenario.Tags = scenario.Tags ?? new Tags();
-
-                    //    text.Append("AdditionalCategoryAttribute: " + additionalCategoryAttributes.Count);
-
-                    //    if (additionalCategoryAttributes.Count > 0)
-                    //    {
-                    //        for (int counter = 0; counter < additionalCategoryAttributes.Count; counter++)
-                    //        {
-                    //            scenario.Tags.Add(additionalCategoryAttributes[counter].Type.Contains("unique")
-                    //                ? new Tag(additionalCategoryAttributes[counter].Value + GenerateuniqueId())
-                    //                : new Tag(additionalCategoryAttributes[counter].Value));
-                    //        }
-                    //    }
-                    //}
                 }
                 catch (Exception e)
                 {
@@ -110,10 +145,6 @@ namespace UnitTestGeneratorPlugin.Generator.SpecFlowPlugin
             }
             _uniqueIdList.Add(uniqueId);
             return uniqueId;
-        }
-
-        public void test()
-        {
         }
     }
 }
