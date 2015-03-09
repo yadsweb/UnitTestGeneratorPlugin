@@ -1,10 +1,13 @@
-﻿using System.Configuration;
+﻿using System;
+using System.Configuration;
+using System.Reflection;
 
 namespace UnitTestGeneratorPlugin.Generator.SpecFlowPlugin
 {
     public class GeneratorPluginConfiguration : ConfigurationSection
     {
         private static GeneratorPluginConfiguration _config;
+        private Assembly _configurationDefiningAssembly;
 
         public static GeneratorPluginConfiguration GetConfig()
         {
@@ -14,14 +17,27 @@ namespace UnitTestGeneratorPlugin.Generator.SpecFlowPlugin
             }
             return _config;
         }
-        public static GeneratorPluginConfiguration GetConfig(Configuration configuration)
+
+        public TConfig GetConfig<TConfig>(string configDefiningAssemblyPath,
+            string configFilePath, string sectionName) where TConfig : ConfigurationSection
         {
-            if (_config == null)
-            {
-                _config = (GeneratorPluginConfiguration)configuration.GetSection("GeneratorPluginConfiguration");
-            }
-            return _config;
+            AppDomain.CurrentDomain.AssemblyResolve += new
+                ResolveEventHandler(ConfigResolveEventHandler);
+            _configurationDefiningAssembly = Assembly.LoadFrom(configDefiningAssemblyPath);
+            var exeFileMap = new ExeConfigurationFileMap();
+            exeFileMap.ExeConfigFilename = configFilePath;
+            var customConfig = ConfigurationManager.OpenMappedExeConfiguration(exeFileMap,
+                ConfigurationUserLevel.None);
+            var returnConfig = customConfig.GetSection(sectionName) as TConfig;
+            AppDomain.CurrentDomain.AssemblyResolve -= ConfigResolveEventHandler;
+            return returnConfig;
         }
+
+        public Assembly ConfigResolveEventHandler(object sender, ResolveEventArgs args)
+        {
+            return _configurationDefiningAssembly;
+        }
+
 
         [ConfigurationProperty("AdditionalCategoryAttributes")]
         [ConfigurationCollection(typeof(AdditionalCategoryAttributes), AddItemName = "AdditionalCategoryAttribute")]
