@@ -68,9 +68,99 @@ namespace UnitTestGeneratorPlugin.Generator.SpecFlowPlugin
                             var assemblyContainingFilter = Assembly.LoadFrom(_customeConfigurationSection.FilterAssembly.Filepath);
                             var categoriesFilter = _customeConfigurationSection.AdditionalCategoryAttributeFilter;
                             var stepsFilter = _customeConfigurationSection.StepFilter;
+                            var testCaseAttributeFilter = _customeConfigurationSection.AdditionalTestCaseAttributeFilter;
+
+                            #region Test case attributes filtering
+
+                            if (testCaseAttributeFilter.ElementInformation.IsPresent)
+                            {
+                                _log.Info("Test case attribute filter element is present with class name '" + categoriesFilter.Classname + "' and method '" + categoriesFilter.Method + "' properties.");
+                                
+                                var rawTestCaseAttribute = new List<AdditionalTestCaseAttribute>();
+                                
+                                _log.Info("Creating a temporal list with test case attributes which will be send to the filter method.");
+                                
+                                foreach (var testCaseAttribute in _customeConfigurationSection.AdditionalTestCaseAttributes)
+                                {
+                                    _log.Info("Adding test case attribute with type '" + ((AdditionalTestCaseAttribute)testCaseAttribute).Type + "' and value '" + ((AdditionalTestCaseAttribute)testCaseAttribute).Value + " to the temporary list");
+                                    
+                                    rawTestCaseAttribute.Add(((AdditionalTestCaseAttribute)testCaseAttribute));
+                                }
+
+                                _log.Info("Loaded filter assembly is '" + assemblyContainingFilter.GetName() + "'.");
+                                var filterType = assemblyContainingFilter.GetType(testCaseAttributeFilter.Classname);
+                                _log.Info("Test case attribute filter type is '" + filterType.Name + "'.");
+                                var methodInfo = filterType.GetMethod(testCaseAttributeFilter.Method,
+                                    new[] { typeof(List<AdditionalTestCaseAttribute>), typeof(Scenario) });
+                                var o = Activator.CreateInstance(filterType);
+                                var filteredTestCaseAttributes =
+                                    (List<GherkinTableRow>)
+                                        methodInfo.Invoke(o, new object[] { rawTestCaseAttribute });
+                                _log.Info("Test case attribute rows returned by the filter method are '" + filteredTestCaseAttributes.Count + "'.");
+                                if (filteredTestCaseAttributes.Count > 0)
+                                {
+                                    var scenarioOutline = scenario as ScenarioOutline ?? new ScenarioOutline
+                                    {
+                                        Description = scenario.Description,
+                                        Keyword = scenario.Keyword,
+                                        Title = scenario.Title,
+                                        Tags = scenario.Tags,
+                                        Steps = scenario.Steps,
+                                        Examples =
+                                            new Examples(new ExampleSet
+                                            {
+                                                Table =
+                                                    new GherkinTable(new GherkinTableRow(new GherkinTableCell[0]),
+                                                        new GherkinTableRow[0])
+                                            })
+                                    };
+
+                                    var tableContents = scenarioOutline.Examples.ExampleSets.First().Table.Body.ToList();
+
+                                    _log.Info(tableContents.Count + " test case attributes retrieved from scenario with name '" + scenario.Title + "'");
+                                    _log.Info("Clearing the content of retrieve table.");
+                                    tableContents.Clear();
+
+                                    foreach (var testCaseAttributeRow in filteredTestCaseAttributes)
+                                    {
+                                        _log.Info("Trying to add test case attribute row with cells: ");
+
+                                        foreach (var cell in testCaseAttributeRow.Cells)
+                                        {
+                                            _log.Info(cell.Value);
+                                        }
+
+                                        _log.Info("to scenario with name '"+scenario.Title+"'");
+
+                                        tableContents.Add(testCaseAttributeRow);
+
+                                    }
+                                    _log.Info(tableContents.Count + " test case attributes retrieved from scenario with name '" + scenario.Title + "' after updating.");
+
+                                    var alteredScenarios = new List<ScenarioOutline>();
+
+                                    scenarioOutline.Examples.ExampleSets.First().Table.Body = tableContents.ToArray();
+
+                                    alteredScenarios.Add(scenarioOutline);
+
+                                    feature.Scenarios = alteredScenarios.ToArray();
+
+                                }
+                                else
+                                {
+                                    _log.Info("Test case attributes returned by the filter type are 0 so no actions will be taken.");
+                                }
+                            }
+                            else
+                            {
+                                _log.Info("Test case attribute filter attribute is not present.");
+                                AddUnFiltratedTestCaseAttributes(scenario, feature);
+                            }
+
+                            #endregion
 
                             #region Categories filtering
-                            
+
                             if (categoriesFilter.ElementInformation.IsPresent)
                             {
                                 _log.Info("Categories filter element is present with class name '" + categoriesFilter.Classname + "' and method '" + categoriesFilter.Method + "' properties.");
@@ -85,18 +175,19 @@ namespace UnitTestGeneratorPlugin.Generator.SpecFlowPlugin
                                 var filterType = assemblyContainingFilter.GetType(categoriesFilter.Classname);
                                 _log.Info("Category filter type is '" + filterType.Name + "'.");
                                 var methodInfo = filterType.GetMethod(categoriesFilter.Method,
-                                    new[] { typeof(List<AdditionalCategoryAttribute>) });
+                                    new[] { typeof(List<AdditionalCategoryAttribute>), typeof(Scenario) });
                                 var o = Activator.CreateInstance(filterType);
                                 var filteredCategories =
                                     (List<AdditionalCategoryAttribute>)
                                         methodInfo.Invoke(o, new object[] { rawCategories });
-                                _log.Info("Categories returned by the filter method are '" + filteredCategories.Count+"'.");
+                                _log.Info("Categories returned by the filter method are '" + filteredCategories.Count + "'.");
                                 if (filteredCategories.Count > 0)
                                 {
-                                    foreach (AdditionalCategoryAttribute category in filteredCategories)
+                                    foreach (var category in filteredCategories)
                                     {
-                                        _log.Info("Adding category attribute with type '"+category.Type+"' and value '"+category.Value+"'");
-                                        scenario.Tags = scenario.Tags ?? new Tags();
+                                        _log.Info("Clearing all category attributes for scenario '"+scenario.Title+"'");
+                                        scenario.Tags = new Tags();
+                                        _log.Info("Adding category attribute with type '" + category.Type + "' and value '" + category.Value + "'");
                                         scenario.Tags.Add(category.Type.Contains("unique")
                                             ? new Tag(category.Value + GenerateuniqueId())
                                             : new Tag(category.Value));
@@ -131,7 +222,7 @@ namespace UnitTestGeneratorPlugin.Generator.SpecFlowPlugin
                                 var filterType = assemblyContainingFilter.GetType(stepsFilter.Classname);
                                 _log.Info("Step filter type is '" + filterType.Name + "'.");
                                 var methodInfo = filterType.GetMethod(stepsFilter.Method,
-                                    new[] { typeof(List<Step>) });
+                                    new[] { typeof(List<Step>), typeof(Scenario) });
                                 var o = Activator.CreateInstance(filterType);
                                 var filteredSteps =
                                     (List<Step>)
@@ -191,7 +282,7 @@ namespace UnitTestGeneratorPlugin.Generator.SpecFlowPlugin
                         }
                         catch (Exception e)
                         {
-                            _log.Error("When trying to use filter classes from assembly with path " +_customeConfigurationSection.FilterAssembly.Filepath);
+                            _log.Error("When trying to use filter classes from assembly with path " + _customeConfigurationSection.FilterAssembly.Filepath);
                             _log.Error(e.StackTrace);
                         }
                     }
@@ -248,7 +339,7 @@ namespace UnitTestGeneratorPlugin.Generator.SpecFlowPlugin
                 {
                     foreach (AdditionalCategoryAttribute categoryAttribute in additionalCategoryAttributes)
                     {
-                        _log.Info("Adding category with type '" + categoryAttribute.Type + "' and value '" + categoryAttribute.Value+"' to scenario with name '"+scenario.Title+"'.");
+                        _log.Info("Adding category with type '" + categoryAttribute.Type + "' and value '" + categoryAttribute.Value + "' to scenario with name '" + scenario.Title + "'.");
                         scenario.Tags = scenario.Tags ?? new Tags();
                         scenario.Tags.Add(categoryAttribute.Type.Contains("unique")
                             ? new Tag(categoryAttribute.Value + GenerateuniqueId())
@@ -293,7 +384,7 @@ namespace UnitTestGeneratorPlugin.Generator.SpecFlowPlugin
 
                     var tableContents = scenarioOutline.Examples.ExampleSets.First().Table.Body.ToList();
 
-                    _log.Info(tableContents.Count+ " test case attributes retrieved from scenario with name '"+scenario.Title+"'");
+                    _log.Info(tableContents.Count + " test case attributes retrieved from scenario with name '" + scenario.Title + "'");
 
                     for (var i = 0; i < additionalTestCaseAttributes.Count; i++)
                     {
@@ -311,7 +402,7 @@ namespace UnitTestGeneratorPlugin.Generator.SpecFlowPlugin
                                 new GherkinTableRow(
                                     new GherkinTableCell(additionalTestCaseAttributes[i].Value)));
                         }
-                        
+
                     }
                     _log.Info(tableContents.Count + " test case attributes retrieved from scenario with name '" + scenario.Title + "' after updating.");
 
@@ -346,7 +437,7 @@ namespace UnitTestGeneratorPlugin.Generator.SpecFlowPlugin
                         switch (step.Type.ToLower())
                         {
                             case "given":
-                                _log.Info("Adding step with final text '" + step.Value.Replace("{", "<").Replace("}", ">") + "' and type 'given' on position '"+step.Position+"' to scenario with name '" + scenario.Title + "'.");
+                                _log.Info("Adding step with final text '" + step.Value.Replace("{", "<").Replace("}", ">") + "' and type 'given' on position '" + step.Position + "' to scenario with name '" + scenario.Title + "'.");
                                 scenario.Steps.Insert(Convert.ToInt16(step.Position),
                                     new Given
                                     {
@@ -355,7 +446,7 @@ namespace UnitTestGeneratorPlugin.Generator.SpecFlowPlugin
                                     });
                                 break;
                             case "when":
-                                _log.Info("Adding step with final text '" + step.Value.Replace("{", "<").Replace("}", ">") + "' and type 'when' on position '"+step.Position+"' to scenario with name '" + scenario.Title + "'.");
+                                _log.Info("Adding step with final text '" + step.Value.Replace("{", "<").Replace("}", ">") + "' and type 'when' on position '" + step.Position + "' to scenario with name '" + scenario.Title + "'.");
                                 scenario.Steps.Insert(Convert.ToInt16(step.Position),
                                     new When
                                     {
