@@ -5,7 +5,10 @@ using System.Configuration;
 using System.IO;
 using System.Linq;
 using System.Reflection;
-using System.Text;
+using log4net;
+using log4net.Appender;
+using log4net.Layout;
+using log4net.Repository.Hierarchy;
 using TechTalk.SpecFlow.Generator;
 using TechTalk.SpecFlow.Generator.Configuration;
 using TechTalk.SpecFlow.Generator.UnitTestConverter;
@@ -15,18 +18,18 @@ using TechTalk.SpecFlow.Utils;
 
 namespace UnitTestGeneratorPlugin.Generator.SpecFlowPlugin
 {
-    class CustomUnitTestFeatureGenerator : UnitTestFeatureGenerator, IFeatureGenerator
+    internal class CustomUnitTestFeatureGenerator : UnitTestFeatureGenerator, IFeatureGenerator
     {
         private readonly List<int> _uniqueIdList;
         private readonly Random _rnd;
         private Configuration _appConfig;
         private GeneratorPluginConfiguration _customeConfigurationSection;
-        private StringBuilder _text = new StringBuilder("");
+        private readonly ILog _log = LogManager.GetLogger(MethodBase.GetCurrentMethod().DeclaringType);
 
         protected CustomUnitTestFeatureGenerator(IUnitTestGeneratorProvider testGeneratorProvider,
-                CodeDomHelper codeDomHelper,
-                GeneratorConfiguration generatorConfiguration,
-                IDecoratorRegistry decoratorRegistry)
+            CodeDomHelper codeDomHelper,
+            GeneratorConfiguration generatorConfiguration,
+            IDecoratorRegistry decoratorRegistry)
             : base(testGeneratorProvider, codeDomHelper, generatorConfiguration, decoratorRegistry)
         {
             _uniqueIdList = new List<int>();
@@ -37,39 +40,62 @@ namespace UnitTestGeneratorPlugin.Generator.SpecFlowPlugin
         {
             InitializeConfiguration();
             InitializeCustomConfigurationSection();
+            SetUpLogger();
             if (!_customeConfigurationSection.ElementInformation.IsPresent)
             {
+                _log.Info("There is no generator plugin configuration section in app.config.");
+                _log.Info("Only unique id category will be added to generate unit tests for feature '" + feature.Title + "'.");
                 foreach (var scenario in feature.Scenarios)
                 {
                     scenario.Tags = scenario.Tags ?? new Tags();
-                    scenario.Tags.Add(new Tag("uniqueId:" + GenerateuniqueId()));
+                    var uniqueTag = "uniqueId:" + GenerateuniqueId();
+                    scenario.Tags.Add(new Tag(uniqueTag));
+                    _log.Info("Tag '" + uniqueTag + "' added to scenario with name '" + scenario.Title + "'.");
                 }
             }
             else
             {
+                _log.Info("Generator plugin configuration section in app.config present.");
+                _log.Info("Its values will be used during unit tests generation for feature with name '" + feature.Title + "'.");
                 foreach (var scenario in feature.Scenarios)
                 {
                     if (_customeConfigurationSection.FilterAssembly.ElementInformation.IsPresent)
                     {
+                        _log.Info("Filter assembly element is present in the plugin configuration section.");
                         try
                         {
-                            _text.AppendLine("filter assembly is not null file path is: " + _customeConfigurationSection.FilterAssembly.Filepath);
+                            _log.Info("Filter assembly file path property is '" + _customeConfigurationSection.FilterAssembly.Filepath + "'.");
                             var assemblyContainingFilter = Assembly.LoadFrom(_customeConfigurationSection.FilterAssembly.Filepath);
-                            var categoriesFilter =_customeConfigurationSection.AdditionalCategoryAttributeFilter;
+                            var categoriesFilter = _customeConfigurationSection.AdditionalCategoryAttributeFilter;
+                            var stepsFilter = _customeConfigurationSection.StepFilter;
+
+                            #region Categories filtering
+                            
                             if (categoriesFilter.ElementInformation.IsPresent)
                             {
+                                _log.Info("Categories filter element is present with class name '" + categoriesFilter.Classname + "' and method '" + categoriesFilter.Method + "' properties.");
                                 var rawCategories = new List<AdditionalCategoryAttribute>();
-                                for (int i = 0; i < _customeConfigurationSection.AdditionalCategoryAttributes.Count; i++)
+                                _log.Info("Creating a temporal list with category attributes which will be send to the filter method.");
+                                foreach (var categoryAttribute in _customeConfigurationSection.AdditionalCategoryAttributes)
                                 {
-                                    _text.AppendLine("adding categor with type: " + _customeConfigurationSection.AdditionalCategoryAttributes[i].Type + "and value" + _customeConfigurationSection.AdditionalCategoryAttributes[i].Value);
-                                    rawCategories.Add(_customeConfigurationSection.AdditionalCategoryAttributes[i]);
+                                    _log.Info("Adding category with type '" + ((AdditionalCategoryAttribute)categoryAttribute).Type + "' and value '" + ((AdditionalCategoryAttribute)categoryAttribute).Value + " to the temporary list");
+                                    rawCategories.Add(((AdditionalCategoryAttribute)categoryAttribute));
                                 }
+                                _log.Info("Loaded filter assembly is '" + assemblyContainingFilter.GetName() + "'.");
                                 var filterType = assemblyContainingFilter.GetType(categoriesFilter.Classname);
-                                var filteredCategories = (List<AdditionalCategoryAttribute>)filterType.InvokeMember(categoriesFilter.Method, BindingFlags.InvokeMethod | BindingFlags.Instance | BindingFlags.Public, null, filterType, new object[] { rawCategories });
+                                _log.Info("Category filter type is '" + filterType.Name + "'.");
+                                var methodInfo = filterType.GetMethod(categoriesFilter.Method,
+                                    new[] { typeof(List<AdditionalCategoryAttribute>) });
+                                var o = Activator.CreateInstance(filterType);
+                                var filteredCategories =
+                                    (List<AdditionalCategoryAttribute>)
+                                        methodInfo.Invoke(o, new object[] { rawCategories });
+                                _log.Info("Categories returned by the filter method are '" + filteredCategories.Count+"'.");
                                 if (filteredCategories.Count > 0)
                                 {
                                     foreach (AdditionalCategoryAttribute category in filteredCategories)
                                     {
+                                        _log.Info("Adding category attribute with type '"+category.Type+"' and value '"+category.Value+"'");
                                         scenario.Tags = scenario.Tags ?? new Tags();
                                         scenario.Tags.Add(category.Type.Contains("unique")
                                             ? new Tag(category.Value + GenerateuniqueId())
@@ -78,18 +104,95 @@ namespace UnitTestGeneratorPlugin.Generator.SpecFlowPlugin
                                 }
                                 else
                                 {
-                                    _text.AppendLine("Filtered categories are empty");
+                                    _log.Info("Categories returned by the filter type are 0 so no actions will be taken.");
                                 }
                             }
                             else
                             {
+                                _log.Info("Category filter attribute is not present.");
                                 AddUnFiltratedCategoryAttributes(scenario);
                             }
+
+                            #endregion
+
+                            #region Steps filtering
+
+                            if (stepsFilter.ElementInformation.IsPresent)
+                            {
+                                _log.Info("Steps filter element is present with class name '" + stepsFilter.Classname + "' and method '" + stepsFilter.Method + "' properties.");
+                                var rawSteps = new List<Step>();
+                                _log.Info("Creating a temporal list with steps which will be send to the filter method.");
+                                foreach (var step in _customeConfigurationSection.Steps)
+                                {
+                                    _log.Info("Adding step with type '" + ((Step)step).Type + "' and value '" + ((Step)step).Value + " to the temporary list");
+                                    rawSteps.Add(((Step)step));
+                                }
+                                _log.Info("Loaded filter assembly is '" + assemblyContainingFilter.GetName() + "'.");
+                                var filterType = assemblyContainingFilter.GetType(stepsFilter.Classname);
+                                _log.Info("Step filter type is '" + filterType.Name + "'.");
+                                var methodInfo = filterType.GetMethod(stepsFilter.Method,
+                                    new[] { typeof(List<Step>) });
+                                var o = Activator.CreateInstance(filterType);
+                                var filteredSteps =
+                                    (List<Step>)
+                                        methodInfo.Invoke(o, new object[] { rawSteps });
+                                _log.Info("Steps returned by the filter method are '" + filteredSteps.Count + "'.");
+                                if (filteredSteps.Count > 0)
+                                {
+                                    foreach (var step in filteredSteps)
+                                    {
+                                        switch (step.Type.ToLower())
+                                        {
+                                            case "given":
+                                                _log.Info("Adding step with final text '" + step.Value.Replace("{", "<").Replace("}", ">") + "' and type 'given' on position '" + step.Position + "' to scenario with name '" + scenario.Title + "'.");
+                                                scenario.Steps.Insert(Convert.ToInt16(step.Position),
+                                                    new Given
+                                                    {
+                                                        Text = step.Value.Replace("{", "<").Replace("}", ">"),
+                                                        Keyword = step.Type
+                                                    });
+                                                break;
+                                            case "when":
+                                                _log.Info("Adding step with final text '" + step.Value.Replace("{", "<").Replace("}", ">") + "' and type 'when' on position '" + step.Position + "' to scenario with name '" + scenario.Title + "'.");
+                                                scenario.Steps.Insert(Convert.ToInt16(step.Position),
+                                                    new When
+                                                    {
+                                                        Text = step.Value.Replace("{", "<").Replace("}", ">"),
+                                                        Keyword = step.Type
+                                                    });
+                                                break;
+                                            case "then":
+                                                _log.Info("Adding step with final text '" + step.Value.Replace("{", "<").Replace("}", ">") + "' and type 'then' on position '" + step.Position + "' to scenario with name '" + scenario.Title + "'.");
+                                                scenario.Steps.Insert(Convert.ToInt16(step.Position),
+                                                    new Then
+                                                    {
+                                                        Text = step.Value.Replace("{", "<").Replace("}", ">"),
+                                                        Keyword = step.Type
+                                                    });
+                                                break;
+                                            default:
+                                                throw new Exception("Error mentioned type '" + step.Type.ToLower() +
+                                                                    "' didn't match any specflow step type (given, when, then,)!");
+                                        }
+                                    }
+                                }
+                                else
+                                {
+                                    _log.Info("Steps returned by the filter type are 0 so no actions will be taken.");
+                                }
+                            }
+                            else
+                            {
+                                _log.Info("Steps filter attribute is not present.");
+                                AddUnFiltratedSteps(scenario);
+                            }
+
+                            #endregion
                         }
                         catch (Exception e)
                         {
-                            _text.AppendLine("Error: Appear when trying to use filter classes from assembly with path " + _customeConfigurationSection.FilterAssembly.Filepath +"\n"+e.Message);
-                            //throw;
+                            _log.Error("When trying to use filter classes from assembly with path " +_customeConfigurationSection.FilterAssembly.Filepath);
+                            _log.Error(e.StackTrace);
                         }
                     }
                     else
@@ -100,216 +203,6 @@ namespace UnitTestGeneratorPlugin.Generator.SpecFlowPlugin
                     }
                 }
             }
-
-
-
-
-
-
-
-
-
-
-
-
-            //_text.AppendLine(" directory: " + Directory.GetCurrentDirectory());
-
-            //var fileMap = new ExeConfigurationFileMap
-            //{
-            //    ExeConfigFilename = Directory.GetCurrentDirectory() + @"\App.config"
-            //};
-
-            //var appConfig = ConfigurationManager.OpenMappedExeConfiguration(fileMap, ConfigurationUserLevel.None);
-
-            //_text.AppendLine(" Custom.plugin.generator.configuration value: " + appConfig.AppSettings.Settings["Custom.plugin.generator.configuration"]);
-
-            //if (appConfig.AppSettings.Settings["Custom.plugin.generator.configuration"] == null)
-            //{
-            //    foreach (var scenario in feature.Scenarios)
-            //    {
-            //        scenario.Tags = scenario.Tags ?? new Tags();
-            //        scenario.Tags.Add(new Tag("uniqueId:" + GenerateuniqueId()));
-            //    }
-            //}
-            //else
-            //{
-            //    try
-            //    {
-            //        _text.AppendLine("Start loading the configuration -------------");
-            //        _text.AppendLine("Start loading the configuration ------------- " + appConfig.AppSettings.Settings["Custom.plugin.generator.configuration"].Value);
-            //        var customeConfigurationSection = new GeneratorPluginConfiguration().GetConfig<GeneratorPluginConfiguration>(appConfig.AppSettings.Settings["Custom.plugin.generator.configuration"].Value, @"App.config", "GeneratorPluginConfiguration");
-            //        var additionalCategoryAttributes = customeConfigurationSection.AdditionalCategoryAttributes;
-            //        _text.AppendLine("additional categories attributes are:  -------------" + additionalCategoryAttributes.Count);
-            //        var additionalTestCaseAttributes = customeConfigurationSection.AdditionalTestCaseAttributes;
-            //        _text.AppendLine("additional testcase attributes are:  -------------" + additionalTestCaseAttributes.Count);
-            //        var steps = customeConfigurationSection.Steps;
-            //        var filterAssembly = customeConfigurationSection.FilterAssembly;
-            //        var categoriesFilter = customeConfigurationSection.AdditionalCategoryAttributeFilter;
-            //        var testcaseattributesFilter = customeConfigurationSection.AdditionalTestCaseAttributeFilter;
-            //        var stepsFilter = customeConfigurationSection.StepFilter;
-            //        _text.AppendLine("end loading the configuration -------------");
-
-            //        foreach (var scenario in feature.Scenarios)
-            //        {
-            //            scenario.Tags = scenario.Tags ?? new Tags();
-
-            //            _text.AppendLine("AdditionalCategoryAttribute are: " + additionalCategoryAttributes.Count);
-
-            //            if (filterAssembly.ElementInformation.IsPresent)
-            //            {
-            //                _text.AppendLine("filter assembly is not null file path is: " + filterAssembly.Filepath);
-
-            //                var assemblyContainingFilter = Assembly.LoadFrom(filterAssembly.Filepath);
-
-            //                if (categoriesFilter != null)
-            //                {
-            //                    _text.AppendLine("categories filter is set hava classname : " + categoriesFilter.Classname + "and method" + categoriesFilter.Method);
-
-            //                    var rawCategories = new List<AdditionalCategoryAttribute>();
-            //                    for (int i = 0; i < additionalCategoryAttributes.Count; i++)
-            //                    {
-            //                        _text.AppendLine("adding categor with type: " + additionalCategoryAttributes[i].Type + "and value" + additionalCategoryAttributes[i].Value);
-            //                        rawCategories.Add(additionalCategoryAttributes[i]);
-            //                    }
-            //                    var filterType = assemblyContainingFilter.GetType(categoriesFilter.Classname);
-            //                    var filteredCategories = (List<AdditionalCategoryAttribute>)filterType.InvokeMember(categoriesFilter.Method, BindingFlags.InvokeMethod | BindingFlags.Instance | BindingFlags.Public, null, filterType, new object[] { rawCategories });
-            //                    if (filteredCategories.Count > 0)
-            //                    {
-            //                        foreach (AdditionalCategoryAttribute category in filteredCategories)
-            //                        {
-            //                            scenario.Tags.Add(category.Type.Contains("unique")
-            //                                ? new Tag(category.Value + GenerateuniqueId())
-            //                                : new Tag(category.Value));
-            //                        }
-            //                    }
-            //                    else
-            //                    {
-            //                        _text.AppendLine("Filtered categories are empty");
-            //                    }
-            //                }
-            //                else
-            //                {
-            //                    if (additionalCategoryAttributes.Count > 0)
-            //                    {
-            //                        for (int counter = 0; counter < additionalCategoryAttributes.Count; counter++)
-            //                        {
-            //                            scenario.Tags.Add(additionalCategoryAttributes[counter].Type.Contains("unique")
-            //                                ? new Tag(additionalCategoryAttributes[counter].Value + GenerateuniqueId())
-            //                                : new Tag(additionalCategoryAttributes[counter].Value));
-            //                        }
-            //                    }
-            //                    else
-            //                    {
-            //                        _text.AppendLine("no categories which need to be added to unit tests found");
-            //                    }
-            //                }
-
-            //            }
-            //            else
-            //            {
-            //                _text.AppendLine("filter assembly is null");
-
-
-            //                if (additionalTestCaseAttributes.Count > 0)
-            //                {
-            //                    var scenarioOutline = scenario as ScenarioOutline ?? new ScenarioOutline
-            //                    {
-            //                        Description = scenario.Description,
-            //                        Keyword = scenario.Keyword,
-            //                        Title = scenario.Title,
-            //                        Tags = scenario.Tags,
-            //                        Steps = scenario.Steps,
-            //                        Examples = new Examples(new ExampleSet { Table = new GherkinTable(new GherkinTableRow(new GherkinTableCell[0]), new GherkinTableRow[0]) })
-            //                    };
-
-            //                    var tableContents = scenarioOutline.Examples.ExampleSets.First().Table.Body.ToList();
-
-            //                    for (var i = 0; i < additionalTestCaseAttributes.Count; i++)
-            //                    {
-            //                        _text.AppendLine("tableContents rows are: " + tableContents.Count);
-            //                        _text.AppendLine("trying to add '" + additionalTestCaseAttributes[i].Value + "' as test case attribute to scenario: " + scenario.Title);
-
-            //                        if (additionalTestCaseAttributes[i].Type.Contains("unique"))
-            //                        {
-            //                            tableContents.Add(
-            //                                new GherkinTableRow(
-            //                                    new GherkinTableCell(additionalTestCaseAttributes[i].Value + GenerateuniqueId())));
-            //                        }
-            //                        else
-            //                        {
-            //                            tableContents.Add(
-            //                                new GherkinTableRow(
-            //                                    new GherkinTableCell(additionalTestCaseAttributes[i].Value)));
-            //                        }
-            //                        _text.AppendLine("tableContents rows after updates are: " + tableContents.Count);
-            //                    }
-
-            //                    scenarioOutline.Examples.ExampleSets.First().Table.Body = tableContents.ToArray();
-
-            //                    alteredScenarios.Add(scenarioOutline);
-
-            //                    feature.Scenarios = alteredScenarios.ToArray();
-
-            //                    foreach (var za in alteredScenarios)
-            //                    {
-            //                        var zzaa = za as ScenarioOutline;
-            //                        var cels = zzaa.Examples.ExampleSets.First().Table.Body.First().Cells;
-            //                        foreach (var w in cels)
-            //                        {
-            //                            Console.WriteLine("---------- " + w.Value);
-            //                        }
-            //                    }
-
-            //                }
-
-            //                if (additionalCategoryAttributes.Count > 0)
-            //                {
-            //                    for (var i = 0; i < additionalCategoryAttributes.Count; i++)
-            //                    {
-            //                        scenario.Tags.Add(additionalCategoryAttributes[i].Type.Contains("unique")
-            //                                ? new Tag(additionalCategoryAttributes[i].Value + GenerateuniqueId())
-            //                                : new Tag(additionalCategoryAttributes[i].Value));
-            //                    }
-            //                }
-            //                if (steps.Count > 0)
-            //                {
-            //                    foreach (Step step in steps)
-            //                    {
-            //                        switch (step.Type.ToLower())
-            //                        {
-            //                            case "given":
-            //                                scenario.Steps.Insert(Convert.ToInt16(step.Position), new Given { Text = step.Value.Replace("{", "<").Replace("}", ">"), Keyword = step.Type });
-            //                                break;
-            //                            case "when":
-            //                                scenario.Steps.Insert(Convert.ToInt16(step.Position), new When { Text = step.Value.Replace("{", "<").Replace("}", ">"), Keyword = step.Type });
-            //                                break;
-            //                            case "then":
-            //                                scenario.Steps.Insert(Convert.ToInt16(step.Position), new Then { Text = step.Value.Replace("{", "<").Replace("}", ">"), Keyword = step.Type });
-            //                                break;
-            //                            default:
-            //                                throw new Exception("Error mentioned type '" + step.Type.ToLower() + "' didn't match any specflow step type (given, when, then,)!");
-            //                        }
-            //                    }
-            //                }
-            //            }
-            //        }
-            //    }
-            //    catch (Exception e)
-            //    {
-
-            //        _text.Append(e.ToString());
-            //    }
-            //}
-            //try
-            //{
-            //    File.WriteAllText(@"C:\log.txt", _text.ToString());
-            //}
-            //catch (Exception)
-            //{
-
-
-            //}
-
             return base.GenerateUnitTestFixture(feature, testClassName, targetNamespace);
         }
 
@@ -327,10 +220,16 @@ namespace UnitTestGeneratorPlugin.Generator.SpecFlowPlugin
 
         private void InitializeCustomConfigurationSection()
         {
-            _customeConfigurationSection = new GeneratorPluginConfiguration().GetConfig<GeneratorPluginConfiguration>(_appConfig.AppSettings.Settings["Custom.plugin.generator.configuration"].Value, @"App.config", "GeneratorPluginConfiguration");
+            _log.Info("Initializing custom configuration section with assembly path '" + _appConfig.AppSettings.Settings["Custom.plugin.generator.configuration"].Value + "' app.config file '" + Directory.GetCurrentDirectory() + @"\App.config'" + "' and configuration type 'GeneratorPluginConfiguration'.");
+            _customeConfigurationSection =
+                new GeneratorPluginConfiguration().GetConfig<GeneratorPluginConfiguration>(
+                    _appConfig.AppSettings.Settings["Custom.plugin.generator.configuration"].Value, Directory.GetCurrentDirectory() + @"\App.config'",
+                    "GeneratorPluginConfiguration");
         }
+
         private void InitializeConfiguration()
         {
+            _log.Info("Initializing app.config file from location '" + Directory.GetCurrentDirectory() + @"\App.config'");
             var fileMap = new ExeConfigurationFileMap
             {
                 ExeConfigFilename = Directory.GetCurrentDirectory() + @"\App.config"
@@ -338,6 +237,7 @@ namespace UnitTestGeneratorPlugin.Generator.SpecFlowPlugin
 
             _appConfig = ConfigurationManager.OpenMappedExeConfiguration(fileMap, ConfigurationUserLevel.None);
         }
+
         private void AddUnFiltratedCategoryAttributes(Scenario scenario)
         {
             var additionalCategoryAttributes = _customeConfigurationSection.AdditionalCategoryAttributes;
@@ -346,22 +246,23 @@ namespace UnitTestGeneratorPlugin.Generator.SpecFlowPlugin
             {
                 if (additionalCategoryAttributes.Count > 0)
                 {
-                    for (var i = 0; i < additionalCategoryAttributes.Count; i++)
+                    foreach (AdditionalCategoryAttribute categoryAttribute in additionalCategoryAttributes)
                     {
+                        _log.Info("Adding category with type '" + categoryAttribute.Type + "' and value '" + categoryAttribute.Value+"' to scenario with name '"+scenario.Title+"'.");
                         scenario.Tags = scenario.Tags ?? new Tags();
-                        scenario.Tags.Add(additionalCategoryAttributes[i].Type.Contains("unique")
-                            ? new Tag(additionalCategoryAttributes[i].Value + GenerateuniqueId())
-                            : new Tag(additionalCategoryAttributes[i].Value));
+                        scenario.Tags.Add(categoryAttribute.Type.Contains("unique")
+                            ? new Tag(categoryAttribute.Value + GenerateuniqueId())
+                            : new Tag(categoryAttribute.Value));
                     }
                 }
                 else
                 {
-                    _text.AppendLine("Additional category attributes element is present but it didn't contain any child elements!");
+                    _log.Info("Additional category attributes element is present but it didn't contain any child elements!");
                 }
             }
             else
             {
-                _text.AppendLine("Additional category attributes element is not present!");
+                _log.Info("Additional category attributes element is not present!");
             }
         }
 
@@ -385,17 +286,18 @@ namespace UnitTestGeneratorPlugin.Generator.SpecFlowPlugin
                             new Examples(new ExampleSet
                             {
                                 Table =
-                                    new GherkinTable(new GherkinTableRow(new GherkinTableCell[0]), new GherkinTableRow[0])
+                                    new GherkinTable(new GherkinTableRow(new GherkinTableCell[0]),
+                                        new GherkinTableRow[0])
                             })
                     };
 
                     var tableContents = scenarioOutline.Examples.ExampleSets.First().Table.Body.ToList();
 
+                    _log.Info(tableContents.Count+ " test case attributes retrieved from scenario with name '"+scenario.Title+"'");
+
                     for (var i = 0; i < additionalTestCaseAttributes.Count; i++)
                     {
-                        _text.AppendLine("tableContents rows are: " + tableContents.Count);
-                        _text.AppendLine("trying to add '" + additionalTestCaseAttributes[i].Value +
-                                        "' as test case attribute to scenario: " + scenario.Title);
+                        _log.Info("Trying to add test case attribute with type'" + additionalTestCaseAttributes[i].Type + "' and value '" + additionalTestCaseAttributes[i].Value + "' to scenario with name " + scenario.Title);
 
                         if (additionalTestCaseAttributes[i].Type.Contains("unique"))
                         {
@@ -409,8 +311,9 @@ namespace UnitTestGeneratorPlugin.Generator.SpecFlowPlugin
                                 new GherkinTableRow(
                                     new GherkinTableCell(additionalTestCaseAttributes[i].Value)));
                         }
-                        _text.AppendLine("tableContents rows after updates are: " + tableContents.Count);
+                        
                     }
+                    _log.Info(tableContents.Count + " test case attributes retrieved from scenario with name '" + scenario.Title + "' after updating.");
 
                     scenarioOutline.Examples.ExampleSets.First().Table.Body = tableContents.ToArray();
 
@@ -420,14 +323,15 @@ namespace UnitTestGeneratorPlugin.Generator.SpecFlowPlugin
                 }
                 else
                 {
-                    _text.AppendLine("Additional test case attributes element is present but it didn't contain any child elements!");
+                    _log.Info("Additional test case attributes element is present but it didn't contain any child elements!");
                 }
             }
             else
             {
-                _text.AppendLine("Additional test case attributes element is not present!");
+                _log.Info("Additional test case attributes element is not present!");
             }
         }
+
         private void AddUnFiltratedSteps(Scenario scenario)
         {
             var additionalSteps = _customeConfigurationSection.Steps;
@@ -442,6 +346,7 @@ namespace UnitTestGeneratorPlugin.Generator.SpecFlowPlugin
                         switch (step.Type.ToLower())
                         {
                             case "given":
+                                _log.Info("Adding step with final text '" + step.Value.Replace("{", "<").Replace("}", ">") + "' and type 'given' on position '"+step.Position+"' to scenario with name '" + scenario.Title + "'.");
                                 scenario.Steps.Insert(Convert.ToInt16(step.Position),
                                     new Given
                                     {
@@ -450,6 +355,7 @@ namespace UnitTestGeneratorPlugin.Generator.SpecFlowPlugin
                                     });
                                 break;
                             case "when":
+                                _log.Info("Adding step with final text '" + step.Value.Replace("{", "<").Replace("}", ">") + "' and type 'when' on position '"+step.Position+"' to scenario with name '" + scenario.Title + "'.");
                                 scenario.Steps.Insert(Convert.ToInt16(step.Position),
                                     new When
                                     {
@@ -458,6 +364,7 @@ namespace UnitTestGeneratorPlugin.Generator.SpecFlowPlugin
                                     });
                                 break;
                             case "then":
+                                _log.Info("Adding step with final text '" + step.Value.Replace("{", "<").Replace("}", ">") + "' and type 'then' on position '" + step.Position + "' to scenario with name '" + scenario.Title + "'.");
                                 scenario.Steps.Insert(Convert.ToInt16(step.Position),
                                     new Then
                                     {
@@ -473,13 +380,31 @@ namespace UnitTestGeneratorPlugin.Generator.SpecFlowPlugin
                 }
                 else
                 {
-                    _text.AppendLine("Additional steps element is present but it didn't contains any child elements!");
+                    _log.Info("Additional steps element is present but it didn't contains any child elements!");
                 }
             }
             else
             {
-                _text.AppendLine("Additional steps element is not present!");
+                _log.Info("Additional steps element is not present!");
             }
+        }
+
+        private void SetUpLogger()
+        {
+            var hierarchy = (Hierarchy)LogManager.GetRepository();
+            hierarchy.Root.RemoveAllAppenders(); /*Remove any other appenders*/
+            var fileAppender = new FileAppender
+            {
+                AppendToFile = true,
+                LockingModel = new FileAppender.MinimalLock(),
+                File = Directory.GetCurrentDirectory() + @"\GeneratorPluginLog.txt"
+            };
+            var pl = new PatternLayout { ConversionPattern = "%date [%-5level] [%C] [%M] - %message%newline" };
+            pl.ActivateOptions();
+            fileAppender.Layout = pl;
+            fileAppender.ActivateOptions();
+
+            log4net.Config.BasicConfigurator.Configure(fileAppender);
         }
     }
 }
