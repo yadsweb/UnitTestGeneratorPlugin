@@ -24,7 +24,7 @@ namespace UnitTestGeneratorPlugin.Generator.SpecFlowPlugin
         private readonly Random _rnd;
         private Configuration _appConfig;
         private GeneratorPluginConfiguration _customeConfigurationSection;
-        private readonly ILog _log = LogManager.GetLogger(MethodBase.GetCurrentMethod().DeclaringType);
+        private readonly ILog _log = LogManager.GetLogger(typeof(CustomUnitTestFeatureGenerator));
 
         protected CustomUnitTestFeatureGenerator(IUnitTestGeneratorProvider testGeneratorProvider,
             CodeDomHelper codeDomHelper,
@@ -38,9 +38,10 @@ namespace UnitTestGeneratorPlugin.Generator.SpecFlowPlugin
 
         public new CodeNamespace GenerateUnitTestFixture(Feature feature, string testClassName, string targetNamespace)
         {
+            SetUpLogger();
+            _log.Info("Starting custom plug in generator.");
             InitializeConfiguration();
             InitializeCustomConfigurationSection();
-            SetUpLogger();
             if (!_customeConfigurationSection.ElementInformation.IsPresent)
             {
                 _log.Info("There is no generator plugin configuration section in app.config.");
@@ -75,27 +76,27 @@ namespace UnitTestGeneratorPlugin.Generator.SpecFlowPlugin
                             if (testCaseAttributeFilter.ElementInformation.IsPresent)
                             {
                                 _log.Info("Test case attribute filter element is present with class name '" + categoriesFilter.Classname + "' and method '" + categoriesFilter.Method + "' properties.");
-                                
+
                                 var rawTestCaseAttribute = new List<AdditionalTestCaseAttribute>();
-                                
+
                                 _log.Info("Creating a temporal list with test case attributes which will be send to the filter method.");
-                                
+
                                 foreach (var testCaseAttribute in _customeConfigurationSection.AdditionalTestCaseAttributes)
                                 {
                                     _log.Info("Adding test case attribute with type '" + ((AdditionalTestCaseAttribute)testCaseAttribute).Type + "' and value '" + ((AdditionalTestCaseAttribute)testCaseAttribute).Value + " to the temporary list");
-                                    
+
                                     rawTestCaseAttribute.Add(((AdditionalTestCaseAttribute)testCaseAttribute));
                                 }
 
                                 _log.Info("Loaded filter assembly is '" + assemblyContainingFilter.GetName() + "'.");
                                 var filterType = assemblyContainingFilter.GetType(testCaseAttributeFilter.Classname);
-                                _log.Info("Test case attribute filter type is '" + filterType.Name + "'.");
+                                _log.Info("Test case attribute filter type is '" + filterType.Name + "' creating method info object.");
                                 var methodInfo = filterType.GetMethod(testCaseAttributeFilter.Method,
                                     new[] { typeof(List<AdditionalTestCaseAttribute>), typeof(Scenario) });
                                 var o = Activator.CreateInstance(filterType);
                                 var filteredTestCaseAttributes =
                                     (List<GherkinTableRow>)
-                                        methodInfo.Invoke(o, new object[] { rawTestCaseAttribute });
+                                        methodInfo.Invoke(o, new object[] { rawTestCaseAttribute, scenario });
                                 _log.Info("Test case attribute rows returned by the filter method are '" + filteredTestCaseAttributes.Count + "'.");
                                 if (filteredTestCaseAttributes.Count > 0)
                                 {
@@ -130,7 +131,7 @@ namespace UnitTestGeneratorPlugin.Generator.SpecFlowPlugin
                                             _log.Info(cell.Value);
                                         }
 
-                                        _log.Info("to scenario with name '"+scenario.Title+"'");
+                                        _log.Info("to scenario with name '" + scenario.Title + "'");
 
                                         tableContents.Add(testCaseAttributeRow);
 
@@ -179,13 +180,13 @@ namespace UnitTestGeneratorPlugin.Generator.SpecFlowPlugin
                                 var o = Activator.CreateInstance(filterType);
                                 var filteredCategories =
                                     (List<AdditionalCategoryAttribute>)
-                                        methodInfo.Invoke(o, new object[] { rawCategories });
+                                        methodInfo.Invoke(o, new object[] { rawCategories, scenario });
                                 _log.Info("Categories returned by the filter method are '" + filteredCategories.Count + "'.");
                                 if (filteredCategories.Count > 0)
                                 {
                                     foreach (var category in filteredCategories)
                                     {
-                                        _log.Info("Clearing all category attributes for scenario '"+scenario.Title+"'");
+                                        _log.Info("Clearing all category attributes for scenario '" + scenario.Title + "'");
                                         scenario.Tags = new Tags();
                                         _log.Info("Adding category attribute with type '" + category.Type + "' and value '" + category.Value + "'");
                                         scenario.Tags.Add(category.Type.Contains("unique")
@@ -226,7 +227,7 @@ namespace UnitTestGeneratorPlugin.Generator.SpecFlowPlugin
                                 var o = Activator.CreateInstance(filterType);
                                 var filteredSteps =
                                     (List<Step>)
-                                        methodInfo.Invoke(o, new object[] { rawSteps });
+                                        methodInfo.Invoke(o, new object[] { rawSteps, scenario });
                                 _log.Info("Steps returned by the filter method are '" + filteredSteps.Count + "'.");
                                 if (filteredSteps.Count > 0)
                                 {
@@ -235,31 +236,70 @@ namespace UnitTestGeneratorPlugin.Generator.SpecFlowPlugin
                                         switch (step.Type.ToLower())
                                         {
                                             case "given":
-                                                _log.Info("Adding step with final text '" + step.Value.Replace("{", "<").Replace("}", ">") + "' and type 'given' on position '" + step.Position + "' to scenario with name '" + scenario.Title + "'.");
-                                                scenario.Steps.Insert(Convert.ToInt16(step.Position),
-                                                    new Given
-                                                    {
-                                                        Text = step.Value.Replace("{", "<").Replace("}", ">"),
-                                                        Keyword = step.Type
-                                                    });
+                                                if (Convert.ToInt16(step.Position) > scenario.Steps.Count)
+                                                {
+                                                    _log.Info("Adding step with final text '" +step.Value.Replace("{", "<").Replace("}", ">") +"' and type 'given' on position '" + scenario.Steps.Count+ 1 +"' to scenario with name '" + scenario.Title + "'.");
+                                                    scenario.Steps.Add(
+                                                        new Given
+                                                        {
+                                                            Text = step.Value.Replace("{", "<").Replace("}", ">"),
+                                                            Keyword = step.Type
+                                                        });
+                                                }
+                                                else
+                                                {
+                                                    _log.Info("Adding step with final text '" + step.Value.Replace("{", "<").Replace("}", ">") + "' and type 'given' on position '" + scenario.Steps.Count + 1 + "' to scenario with name '" + scenario.Title + "'.");
+                                                    scenario.Steps.Insert(Convert.ToInt16(step.Position),
+                                                        new Given
+                                                        {
+                                                            Text = step.Value.Replace("{", "<").Replace("}", ">"),
+                                                            Keyword = step.Type
+                                                        });
+                                                }
                                                 break;
                                             case "when":
-                                                _log.Info("Adding step with final text '" + step.Value.Replace("{", "<").Replace("}", ">") + "' and type 'when' on position '" + step.Position + "' to scenario with name '" + scenario.Title + "'.");
-                                                scenario.Steps.Insert(Convert.ToInt16(step.Position),
-                                                    new When
-                                                    {
-                                                        Text = step.Value.Replace("{", "<").Replace("}", ">"),
-                                                        Keyword = step.Type
-                                                    });
+                                                if (Convert.ToInt16(step.Position) > scenario.Steps.Count)
+                                                {
+                                                    _log.Info("Adding step with final text '" + step.Value.Replace("{", "<").Replace("}", ">") + "' and type 'when' on position '" + scenario.Steps.Count + 1 + "' to scenario with name '" + scenario.Title + "'.");
+                                                    scenario.Steps.Add(
+                                                        new Given
+                                                        {
+                                                            Text = step.Value.Replace("{", "<").Replace("}", ">"),
+                                                            Keyword = step.Type
+                                                        });
+                                                }
+                                                else
+                                                {
+                                                    _log.Info("Adding step with final text '" + step.Value.Replace("{", "<").Replace("}", ">") + "' and type 'given' on position '" + scenario.Steps.Count + 1 + "' to scenario with name '" + scenario.Title + "'.");
+                                                    scenario.Steps.Insert(Convert.ToInt16(step.Position),
+                                                        new Given
+                                                        {
+                                                            Text = step.Value.Replace("{", "<").Replace("}", ">"),
+                                                            Keyword = step.Type
+                                                        });
+                                                }
                                                 break;
                                             case "then":
-                                                _log.Info("Adding step with final text '" + step.Value.Replace("{", "<").Replace("}", ">") + "' and type 'then' on position '" + step.Position + "' to scenario with name '" + scenario.Title + "'.");
-                                                scenario.Steps.Insert(Convert.ToInt16(step.Position),
-                                                    new Then
-                                                    {
-                                                        Text = step.Value.Replace("{", "<").Replace("}", ">"),
-                                                        Keyword = step.Type
-                                                    });
+                                                if (Convert.ToInt16(step.Position) > scenario.Steps.Count)
+                                                {
+                                                    _log.Info("Adding step with final text '" + step.Value.Replace("{", "<").Replace("}", ">") + "' and type 'then' on position '" + scenario.Steps.Count + 1 + "' to scenario with name '" + scenario.Title + "'.");
+                                                    scenario.Steps.Add(
+                                                        new Given
+                                                        {
+                                                            Text = step.Value.Replace("{", "<").Replace("}", ">"),
+                                                            Keyword = step.Type
+                                                        });
+                                                }
+                                                else
+                                                {
+                                                    _log.Info("Adding step with final text '" + step.Value.Replace("{", "<").Replace("}", ">") + "' and type 'given' on position '" + scenario.Steps.Count + 1 + "' to scenario with name '" + scenario.Title + "'.");
+                                                    scenario.Steps.Insert(Convert.ToInt16(step.Position),
+                                                        new Given
+                                                        {
+                                                            Text = step.Value.Replace("{", "<").Replace("}", ">"),
+                                                            Keyword = step.Type
+                                                        });
+                                                }
                                                 break;
                                             default:
                                                 throw new Exception("Error mentioned type '" + step.Type.ToLower() +
@@ -283,6 +323,7 @@ namespace UnitTestGeneratorPlugin.Generator.SpecFlowPlugin
                         catch (Exception e)
                         {
                             _log.Error("When trying to use filter classes from assembly with path " + _customeConfigurationSection.FilterAssembly.Filepath);
+                            _log.Error(e.Message);
                             _log.Error(e.StackTrace);
                         }
                     }
@@ -311,11 +352,12 @@ namespace UnitTestGeneratorPlugin.Generator.SpecFlowPlugin
 
         private void InitializeCustomConfigurationSection()
         {
-            _log.Info("Initializing custom configuration section with assembly path '" + _appConfig.AppSettings.Settings["Custom.plugin.generator.configuration"].Value + "' app.config file '" + Directory.GetCurrentDirectory() + @"\App.config'" + "' and configuration type 'GeneratorPluginConfiguration'.");
+            _log.Info("Initializing custom configuration section with assembly path '" + _appConfig.AppSettings.Settings["Custom.plugin.generator.configuration"].Value + "' app.config file '" + Directory.GetCurrentDirectory() + @"\App.config" + "' and configuration type 'GeneratorPluginConfiguration'.");
             _customeConfigurationSection =
                 new GeneratorPluginConfiguration().GetConfig<GeneratorPluginConfiguration>(
-                    _appConfig.AppSettings.Settings["Custom.plugin.generator.configuration"].Value, Directory.GetCurrentDirectory() + @"\App.config'",
+                    _appConfig.AppSettings.Settings["Custom.plugin.generator.configuration"].Value, Directory.GetCurrentDirectory() + @"\App.config",
                     "GeneratorPluginConfiguration");
+            _log.Info("Initializing finished");
         }
 
         private void InitializeConfiguration()
@@ -437,31 +479,70 @@ namespace UnitTestGeneratorPlugin.Generator.SpecFlowPlugin
                         switch (step.Type.ToLower())
                         {
                             case "given":
-                                _log.Info("Adding step with final text '" + step.Value.Replace("{", "<").Replace("}", ">") + "' and type 'given' on position '" + step.Position + "' to scenario with name '" + scenario.Title + "'.");
-                                scenario.Steps.Insert(Convert.ToInt16(step.Position),
-                                    new Given
-                                    {
-                                        Text = step.Value.Replace("{", "<").Replace("}", ">"),
-                                        Keyword = step.Type
-                                    });
+                                if (Convert.ToInt16(step.Position) > scenario.Steps.Count)
+                                {
+                                    _log.Info("Adding step with final text '" + step.Value.Replace("{", "<").Replace("}", ">") + "' and type 'given' on position '" + scenario.Steps.Count + 1 + "' to scenario with name '" + scenario.Title + "'.");
+                                    scenario.Steps.Add(
+                                        new Given
+                                        {
+                                            Text = step.Value.Replace("{", "<").Replace("}", ">"),
+                                            Keyword = step.Type
+                                        });
+                                }
+                                else
+                                {
+                                    _log.Info("Adding step with final text '" + step.Value.Replace("{", "<").Replace("}", ">") + "' and type 'given' on position '" + scenario.Steps.Count + 1 + "' to scenario with name '" + scenario.Title + "'.");
+                                    scenario.Steps.Insert(Convert.ToInt16(step.Position),
+                                        new Given
+                                        {
+                                            Text = step.Value.Replace("{", "<").Replace("}", ">"),
+                                            Keyword = step.Type
+                                        });
+                                }
                                 break;
                             case "when":
-                                _log.Info("Adding step with final text '" + step.Value.Replace("{", "<").Replace("}", ">") + "' and type 'when' on position '" + step.Position + "' to scenario with name '" + scenario.Title + "'.");
-                                scenario.Steps.Insert(Convert.ToInt16(step.Position),
-                                    new When
-                                    {
-                                        Text = step.Value.Replace("{", "<").Replace("}", ">"),
-                                        Keyword = step.Type
-                                    });
+                                if (Convert.ToInt16(step.Position) > scenario.Steps.Count)
+                                {
+                                    _log.Info("Adding step with final text '" + step.Value.Replace("{", "<").Replace("}", ">") + "' and type 'when' on position '" + scenario.Steps.Count + 1 + "' to scenario with name '" + scenario.Title + "'.");
+                                    scenario.Steps.Add(
+                                        new Given
+                                        {
+                                            Text = step.Value.Replace("{", "<").Replace("}", ">"),
+                                            Keyword = step.Type
+                                        });
+                                }
+                                else
+                                {
+                                    _log.Info("Adding step with final text '" + step.Value.Replace("{", "<").Replace("}", ">") + "' and type 'given' on position '" + scenario.Steps.Count + 1 + "' to scenario with name '" + scenario.Title + "'.");
+                                    scenario.Steps.Insert(Convert.ToInt16(step.Position),
+                                        new Given
+                                        {
+                                            Text = step.Value.Replace("{", "<").Replace("}", ">"),
+                                            Keyword = step.Type
+                                        });
+                                }
                                 break;
                             case "then":
-                                _log.Info("Adding step with final text '" + step.Value.Replace("{", "<").Replace("}", ">") + "' and type 'then' on position '" + step.Position + "' to scenario with name '" + scenario.Title + "'.");
-                                scenario.Steps.Insert(Convert.ToInt16(step.Position),
-                                    new Then
-                                    {
-                                        Text = step.Value.Replace("{", "<").Replace("}", ">"),
-                                        Keyword = step.Type
-                                    });
+                                if (Convert.ToInt16(step.Position) > scenario.Steps.Count)
+                                {
+                                    _log.Info("Adding step with final text '" + step.Value.Replace("{", "<").Replace("}", ">") + "' and type 'then' on position '" + scenario.Steps.Count + 1 + "' to scenario with name '" + scenario.Title + "'.");
+                                    scenario.Steps.Add(
+                                        new Given
+                                        {
+                                            Text = step.Value.Replace("{", "<").Replace("}", ">"),
+                                            Keyword = step.Type
+                                        });
+                                }
+                                else
+                                {
+                                    _log.Info("Adding step with final text '" + step.Value.Replace("{", "<").Replace("}", ">") + "' and type 'given' on position '" + scenario.Steps.Count + 1 + "' to scenario with name '" + scenario.Title + "'.");
+                                    scenario.Steps.Insert(Convert.ToInt16(step.Position),
+                                        new Given
+                                        {
+                                            Text = step.Value.Replace("{", "<").Replace("}", ">"),
+                                            Keyword = step.Type
+                                        });
+                                }
                                 break;
                             default:
                                 throw new Exception("Error mentioned type '" + step.Type.ToLower() +
