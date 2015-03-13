@@ -25,6 +25,7 @@ namespace UnitTestGeneratorPlugin.Generator.SpecFlowPlugin
         private Configuration _appConfig;
         private GeneratorPluginConfiguration _customeConfigurationSection;
         private readonly ILog _log = LogManager.GetLogger(typeof(CustomUnitTestFeatureGenerator));
+        private bool _successfulInitialization;
 
         protected CustomUnitTestFeatureGenerator(IUnitTestGeneratorProvider testGeneratorProvider,
             CodeDomHelper codeDomHelper,
@@ -41,7 +42,23 @@ namespace UnitTestGeneratorPlugin.Generator.SpecFlowPlugin
             SetUpLogger();
             _log.Info("Starting custom plug in generator.");
             InitializeConfiguration();
+
+            if (!_successfulInitialization)
+            {
+                _log.Info("Initialization of app.config failed.");
+                _log.Info("Only unique id category will be added to generate unit tests for feature '" + feature.Title + "'.");
+                foreach (var scenario in feature.Scenarios)
+                {
+                    scenario.Tags = scenario.Tags ?? new Tags();
+                    var uniqueTag = "uniqueId:" + GenerateuniqueId();
+                    scenario.Tags.Add(new Tag(uniqueTag));
+                    _log.Info("Tag '" + uniqueTag + "' added to scenario with name '" + scenario.Title + "'.");
+                }
+                return base.GenerateUnitTestFixture(feature, testClassName, targetNamespace);
+            }
+
             InitializeCustomConfigurationSection();
+
             if (!_customeConfigurationSection.ElementInformation.IsPresent)
             {
                 _log.Info("There is no generator plugin configuration section in app.config.");
@@ -137,15 +154,17 @@ namespace UnitTestGeneratorPlugin.Generator.SpecFlowPlugin
 
                                     }
                                     _log.Info(tableContents.Count + " test case attributes retrieved from scenario with name '" + scenario.Title + "' after updating.");
-
-                                    var alteredScenarios = new List<ScenarioOutline>();
-
+                                    
                                     scenarioOutline.Examples.ExampleSets.First().Table.Body = tableContents.ToArray();
-
-                                    alteredScenarios.Add(scenarioOutline);
-
-                                    feature.Scenarios = alteredScenarios.ToArray();
-
+                                    
+                                    for (var counter = 0; counter < feature.Scenarios.Count(); counter++)
+                                    {
+                                        if (feature.Scenarios[counter].Title.Equals(scenario.Title))
+                                        {
+                                            _log.Info("Scenario with name '"+scenarioOutline.Title+"' should be on '"+counter+"' place in the fist of scenarios for feature '"+feature.Title+"'.");
+                                            feature.Scenarios[counter] = scenarioOutline;
+                                        }
+                                    }
                                 }
                                 else
                                 {
@@ -184,10 +203,11 @@ namespace UnitTestGeneratorPlugin.Generator.SpecFlowPlugin
                                 _log.Info("Categories returned by the filter method are '" + filteredCategories.Count + "'.");
                                 if (filteredCategories.Count > 0)
                                 {
+                                    _log.Info("Clearing all category attributes for scenario '" + scenario.Title + "'");
+                                    scenario.Tags = scenario.Tags ?? new Tags();
+                                    scenario.Tags.Clear();
                                     foreach (var category in filteredCategories)
                                     {
-                                        _log.Info("Clearing all category attributes for scenario '" + scenario.Title + "'");
-                                        scenario.Tags = new Tags();
                                         _log.Info("Adding category attribute with type '" + category.Type + "' and value '" + category.Value + "'");
                                         scenario.Tags.Add(category.Type.Contains("unique")
                                             ? new Tag(category.Value + GenerateuniqueId())
@@ -238,7 +258,7 @@ namespace UnitTestGeneratorPlugin.Generator.SpecFlowPlugin
                                             case "given":
                                                 if (Convert.ToInt16(step.Position) > scenario.Steps.Count)
                                                 {
-                                                    _log.Info("Adding step with final text '" +step.Value.Replace("{", "<").Replace("}", ">") +"' and type 'given' on position '" + scenario.Steps.Count+ 1 +"' to scenario with name '" + scenario.Title + "'.");
+                                                    _log.Info("Adding step with final text '" + step.Value.Replace("{", "<").Replace("}", ">") + "' and type 'given' on position '" + scenario.Steps.Count + 1 + "' to scenario with name '" + scenario.Title + "'.");
                                                     scenario.Steps.Add(
                                                         new Given
                                                         {
@@ -363,12 +383,31 @@ namespace UnitTestGeneratorPlugin.Generator.SpecFlowPlugin
         private void InitializeConfiguration()
         {
             _log.Info("Initializing app.config file from location '" + Directory.GetCurrentDirectory() + @"\App.config'");
-            var fileMap = new ExeConfigurationFileMap
+            try
             {
-                ExeConfigFilename = Directory.GetCurrentDirectory() + @"\App.config"
-            };
+                var fileMap = new ExeConfigurationFileMap
+                {
+                    ExeConfigFilename = Directory.GetCurrentDirectory() + @"\App.config"
+                };
 
-            _appConfig = ConfigurationManager.OpenMappedExeConfiguration(fileMap, ConfigurationUserLevel.None);
+                _appConfig = ConfigurationManager.OpenMappedExeConfiguration(fileMap, ConfigurationUserLevel.None);
+
+                if (_appConfig.AppSettings.Settings.AllKeys.Any())
+                {
+                    _log.Info("Initialization successful.");
+                    _successfulInitialization = true;
+                }
+                else
+                {
+                    _log.Info("Initialization failed because created configuration is empty.");
+                    _successfulInitialization = false;
+                }
+            }
+            catch (Exception)
+            {
+                _log.Warn("Exception appear when trying to initialize the app.config file successful initialization set to false.");
+                _successfulInitialization = false;
+            }
         }
 
         private void AddUnFiltratedCategoryAttributes(Scenario scenario)
@@ -402,7 +441,6 @@ namespace UnitTestGeneratorPlugin.Generator.SpecFlowPlugin
         private void AddUnFiltratedTestCaseAttributes(Scenario scenario, Feature feature)
         {
             var additionalTestCaseAttributes = _customeConfigurationSection.AdditionalTestCaseAttributes;
-            var alteredScenarios = new List<ScenarioOutline>();
 
             if (additionalTestCaseAttributes.ElementInformation.IsPresent)
             {
@@ -450,9 +488,14 @@ namespace UnitTestGeneratorPlugin.Generator.SpecFlowPlugin
 
                     scenarioOutline.Examples.ExampleSets.First().Table.Body = tableContents.ToArray();
 
-                    alteredScenarios.Add(scenarioOutline);
-
-                    feature.Scenarios = alteredScenarios.ToArray();
+                    for (var counter = 0; counter < feature.Scenarios.Count(); counter++)
+                    {
+                        if (feature.Scenarios[counter].Title.Equals(scenario.Title))
+                        {
+                            _log.Info("Scenario with name '" + scenarioOutline.Title + "' should be on '" + counter + "' place in the fist of scenarios for feature '" + feature.Title + "'.");
+                            feature.Scenarios[counter] = scenarioOutline;
+                        }
+                    }
                 }
                 else
                 {
