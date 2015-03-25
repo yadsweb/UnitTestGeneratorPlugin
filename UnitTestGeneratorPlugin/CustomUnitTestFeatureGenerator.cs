@@ -18,22 +18,24 @@ using TechTalk.SpecFlow.Utils;
 
 namespace UnitTestGeneratorPlugin.Generator.SpecFlowPlugin
 {
-    internal class CustomUnitTestFeatureGenerator : UnitTestFeatureGenerator, IFeatureGenerator
+    public class CustomUnitTestFeatureGenerator : UnitTestFeatureGenerator, IFeatureGenerator
     {
-        private readonly List<int> _uniqueIdList;
+        public readonly List<int> UniqueIdList;
         private readonly Random _rnd;
         private Configuration _appConfig;
-        private GeneratorPluginConfiguration _customeConfigurationSection;
+        public GeneratorPluginConfiguration CustomeConfigurationSection;
         private readonly ILog _log = LogManager.GetLogger(typeof(CustomUnitTestFeatureGenerator));
-        private bool _successfulInitialization;
+        public bool SuccessfulInitialization;
+        private readonly string _appconfigFile = Directory.GetCurrentDirectory() + @"\App.config";
+        public bool SuccessfulLoggerConfiguration = false;
 
-        protected CustomUnitTestFeatureGenerator(IUnitTestGeneratorProvider testGeneratorProvider,
+        public CustomUnitTestFeatureGenerator(IUnitTestGeneratorProvider testGeneratorProvider,
             CodeDomHelper codeDomHelper,
             GeneratorConfiguration generatorConfiguration,
             IDecoratorRegistry decoratorRegistry)
             : base(testGeneratorProvider, codeDomHelper, generatorConfiguration, decoratorRegistry)
         {
-            _uniqueIdList = new List<int>();
+            UniqueIdList = new List<int>();
             _rnd = new Random();
         }
 
@@ -41,9 +43,9 @@ namespace UnitTestGeneratorPlugin.Generator.SpecFlowPlugin
         {
             SetUpLogger();
             _log.Info("Starting custom plug in generator.");
-            InitializeConfiguration();
+            InitializeConfiguration(_appconfigFile);
 
-            if (!_successfulInitialization)
+            if (!SuccessfulInitialization)
             {
                 _log.Info("Initialization of app.config failed.");
                 _log.Info("Only unique id category will be added to generate unit tests for feature '" + feature.Title + "'.");
@@ -57,9 +59,9 @@ namespace UnitTestGeneratorPlugin.Generator.SpecFlowPlugin
                 return base.GenerateUnitTestFixture(feature, testClassName, targetNamespace);
             }
 
-            InitializeCustomConfigurationSection();
+            InitializeCustomConfigurationSection(_appconfigFile);
 
-            if (!_customeConfigurationSection.ElementInformation.IsPresent)
+            if (!CustomeConfigurationSection.ElementInformation.IsPresent)
             {
                 _log.Info("There is no generator plugin configuration section in app.config.");
                 _log.Info("Only unique id category will be added to generate unit tests for feature '" + feature.Title + "'.");
@@ -77,16 +79,16 @@ namespace UnitTestGeneratorPlugin.Generator.SpecFlowPlugin
                 _log.Info("Its values will be used during unit tests generation for feature with name '" + feature.Title + "'.");
                 foreach (var scenario in feature.Scenarios)
                 {
-                    if (_customeConfigurationSection.FilterAssembly.ElementInformation.IsPresent)
+                    if (CustomeConfigurationSection.FilterAssembly.ElementInformation.IsPresent)
                     {
                         _log.Info("Filter assembly element is present in the plugin configuration section.");
                         try
                         {
-                            _log.Info("Filter assembly file path property is '" + _customeConfigurationSection.FilterAssembly.Filepath + "'.");
-                            var assemblyContainingFilter = Assembly.LoadFrom(_customeConfigurationSection.FilterAssembly.Filepath);
-                            var categoriesFilter = _customeConfigurationSection.AdditionalCategoryAttributeFilter;
-                            var stepsFilter = _customeConfigurationSection.StepFilter;
-                            var testCaseAttributeFilter = _customeConfigurationSection.AdditionalTestCaseAttributeFilter;
+                            _log.Info("Filter assembly file path property is '" + CustomeConfigurationSection.FilterAssembly.Filepath + "'.");
+                            var assemblyContainingFilter = Assembly.LoadFrom(CustomeConfigurationSection.FilterAssembly.Filepath);
+                            var categoriesFilter = CustomeConfigurationSection.AdditionalCategoryAttributeFilter;
+                            var stepsFilter = CustomeConfigurationSection.StepFilter;
+                            var testCaseAttributeFilter = CustomeConfigurationSection.AdditionalTestCaseAttributeFilter;
 
                             #region Test case attributes filtering
 
@@ -98,7 +100,7 @@ namespace UnitTestGeneratorPlugin.Generator.SpecFlowPlugin
 
                                 _log.Info("Creating a temporal list with test case attributes which will be send to the filter method.");
 
-                                foreach (var testCaseAttribute in _customeConfigurationSection.AdditionalTestCaseAttributes)
+                                foreach (var testCaseAttribute in CustomeConfigurationSection.AdditionalTestCaseAttributes)
                                 {
                                     _log.Info("Adding test case attribute with type '" + ((AdditionalTestCaseAttribute)testCaseAttribute).Type + "' and value '" + ((AdditionalTestCaseAttribute)testCaseAttribute).Value + " to the temporary list");
 
@@ -186,7 +188,7 @@ namespace UnitTestGeneratorPlugin.Generator.SpecFlowPlugin
                                 _log.Info("Categories filter element is present with class name '" + categoriesFilter.Classname + "' and method '" + categoriesFilter.Method + "' properties.");
                                 var rawCategories = new List<AdditionalCategoryAttribute>();
                                 _log.Info("Creating a temporal list with category attributes which will be send to the filter method.");
-                                foreach (var categoryAttribute in _customeConfigurationSection.AdditionalCategoryAttributes)
+                                foreach (var categoryAttribute in CustomeConfigurationSection.AdditionalCategoryAttributes)
                                 {
                                     _log.Info("Adding category with type '" + ((AdditionalCategoryAttribute)categoryAttribute).Type + "' and value '" + ((AdditionalCategoryAttribute)categoryAttribute).Value + " to the temporary list");
                                     rawCategories.Add(((AdditionalCategoryAttribute)categoryAttribute));
@@ -234,7 +236,7 @@ namespace UnitTestGeneratorPlugin.Generator.SpecFlowPlugin
                                 _log.Info("Steps filter element is present with class name '" + stepsFilter.Classname + "' and method '" + stepsFilter.Method + "' properties.");
                                 var rawSteps = new List<Step>();
                                 _log.Info("Creating a temporal list with steps which will be send to the filter method.");
-                                foreach (var step in _customeConfigurationSection.Steps)
+                                foreach (var step in CustomeConfigurationSection.Steps)
                                 {
                                     _log.Info("Adding step with type '" + ((Step)step).Type + "' and value '" + ((Step)step).Value + " to the temporary list");
                                     rawSteps.Add(((Step)step));
@@ -342,7 +344,7 @@ namespace UnitTestGeneratorPlugin.Generator.SpecFlowPlugin
                         }
                         catch (Exception e)
                         {
-                            _log.Error("When trying to use filter classes from assembly with path " + _customeConfigurationSection.FilterAssembly.Filepath);
+                            _log.Error("When trying to use filter classes from assembly with path " + CustomeConfigurationSection.FilterAssembly.Filepath);
                             _log.Error(e.Message);
                             _log.Error(e.StackTrace);
                         }
@@ -358,36 +360,36 @@ namespace UnitTestGeneratorPlugin.Generator.SpecFlowPlugin
             return base.GenerateUnitTestFixture(feature, testClassName, targetNamespace);
         }
 
-        private int GenerateuniqueId()
+        public int GenerateuniqueId()
         {
             var uniqueId = _rnd.Next(0, 999999);
-            if (_uniqueIdList.Contains(uniqueId))
+            if (UniqueIdList.Contains(uniqueId))
             {
-                _uniqueIdList.Sort();
-                uniqueId = _uniqueIdList.Last() + 1;
+                UniqueIdList.Sort();
+                uniqueId = UniqueIdList.Last() + 1;
             }
-            _uniqueIdList.Add(uniqueId);
+            UniqueIdList.Add(uniqueId);
             return uniqueId;
         }
 
-        private void InitializeCustomConfigurationSection()
+        public void InitializeCustomConfigurationSection(string appConfig)
         {
             _log.Info("Initializing custom configuration section with assembly path '" + _appConfig.AppSettings.Settings["Custom.plugin.generator.configuration"].Value + "' app.config file '" + Directory.GetCurrentDirectory() + @"\App.config" + "' and configuration type 'GeneratorPluginConfiguration'.");
-            _customeConfigurationSection =
+            CustomeConfigurationSection =
                 new GeneratorPluginConfiguration().GetConfig<GeneratorPluginConfiguration>(
-                    _appConfig.AppSettings.Settings["Custom.plugin.generator.configuration"].Value, Directory.GetCurrentDirectory() + @"\App.config",
+                    _appConfig.AppSettings.Settings["Custom.plugin.generator.configuration"].Value, appConfig,
                     "GeneratorPluginConfiguration");
             _log.Info("Initializing finished");
         }
 
-        private void InitializeConfiguration()
+        public void InitializeConfiguration(String appConfigFile)
         {
-            _log.Info("Initializing app.config file from location '" + Directory.GetCurrentDirectory() + @"\App.config'");
+            _log.Info("Initializing app.config file from location '" + appConfigFile);
             try
             {
                 var fileMap = new ExeConfigurationFileMap
                 {
-                    ExeConfigFilename = Directory.GetCurrentDirectory() + @"\App.config"
+                    ExeConfigFilename = appConfigFile
                 };
 
                 _appConfig = ConfigurationManager.OpenMappedExeConfiguration(fileMap, ConfigurationUserLevel.None);
@@ -395,24 +397,24 @@ namespace UnitTestGeneratorPlugin.Generator.SpecFlowPlugin
                 if (_appConfig.AppSettings.Settings.AllKeys.Any())
                 {
                     _log.Info("Initialization successful.");
-                    _successfulInitialization = true;
+                    SuccessfulInitialization = true;
                 }
                 else
                 {
                     _log.Info("Initialization failed because created configuration is empty.");
-                    _successfulInitialization = false;
+                    SuccessfulInitialization = false;
                 }
             }
             catch (Exception)
             {
                 _log.Warn("Exception appear when trying to initialize the app.config file successful initialization set to false.");
-                _successfulInitialization = false;
+                SuccessfulInitialization = false;
             }
         }
 
-        private void AddUnFiltratedCategoryAttributes(Scenario scenario)
+        public void AddUnFiltratedCategoryAttributes(Scenario scenario)
         {
-            var additionalCategoryAttributes = _customeConfigurationSection.AdditionalCategoryAttributes;
+            var additionalCategoryAttributes = CustomeConfigurationSection.AdditionalCategoryAttributes;
 
             if (additionalCategoryAttributes.ElementInformation.IsPresent)
             {
@@ -438,9 +440,9 @@ namespace UnitTestGeneratorPlugin.Generator.SpecFlowPlugin
             }
         }
 
-        private void AddUnFiltratedTestCaseAttributes(Scenario scenario, Feature feature)
+        public void AddUnFiltratedTestCaseAttributes(Scenario scenario, Feature feature)
         {
-            var additionalTestCaseAttributes = _customeConfigurationSection.AdditionalTestCaseAttributes;
+            var additionalTestCaseAttributes = CustomeConfigurationSection.AdditionalTestCaseAttributes;
 
             if (additionalTestCaseAttributes.ElementInformation.IsPresent)
             {
@@ -508,9 +510,9 @@ namespace UnitTestGeneratorPlugin.Generator.SpecFlowPlugin
             }
         }
 
-        private void AddUnFiltratedSteps(Scenario scenario)
+        public void AddUnFiltratedSteps(Scenario scenario)
         {
-            var additionalSteps = _customeConfigurationSection.Steps;
+            var additionalSteps = CustomeConfigurationSection.Steps;
 
             if (additionalSteps.ElementInformation.IsPresent)
             {
@@ -548,7 +550,7 @@ namespace UnitTestGeneratorPlugin.Generator.SpecFlowPlugin
                                 {
                                     _log.Info("Adding step with final text '" + step.Value.Replace("{", "<").Replace("}", ">") + "' and type 'when' on position '" + scenario.Steps.Count + 1 + "' to scenario with name '" + scenario.Title + "'.");
                                     scenario.Steps.Add(
-                                        new Given
+                                        new When
                                         {
                                             Text = step.Value.Replace("{", "<").Replace("}", ">"),
                                             Keyword = step.Type
@@ -558,7 +560,7 @@ namespace UnitTestGeneratorPlugin.Generator.SpecFlowPlugin
                                 {
                                     _log.Info("Adding step with final text '" + step.Value.Replace("{", "<").Replace("}", ">") + "' and type 'given' on position '" + scenario.Steps.Count + 1 + "' to scenario with name '" + scenario.Title + "'.");
                                     scenario.Steps.Insert(Convert.ToInt16(step.Position),
-                                        new Given
+                                        new When
                                         {
                                             Text = step.Value.Replace("{", "<").Replace("}", ">"),
                                             Keyword = step.Type
@@ -570,7 +572,7 @@ namespace UnitTestGeneratorPlugin.Generator.SpecFlowPlugin
                                 {
                                     _log.Info("Adding step with final text '" + step.Value.Replace("{", "<").Replace("}", ">") + "' and type 'then' on position '" + scenario.Steps.Count + 1 + "' to scenario with name '" + scenario.Title + "'.");
                                     scenario.Steps.Add(
-                                        new Given
+                                        new Then
                                         {
                                             Text = step.Value.Replace("{", "<").Replace("}", ">"),
                                             Keyword = step.Type
@@ -580,7 +582,7 @@ namespace UnitTestGeneratorPlugin.Generator.SpecFlowPlugin
                                 {
                                     _log.Info("Adding step with final text '" + step.Value.Replace("{", "<").Replace("}", ">") + "' and type 'given' on position '" + scenario.Steps.Count + 1 + "' to scenario with name '" + scenario.Title + "'.");
                                     scenario.Steps.Insert(Convert.ToInt16(step.Position),
-                                        new Given
+                                        new Then
                                         {
                                             Text = step.Value.Replace("{", "<").Replace("}", ">"),
                                             Keyword = step.Type
@@ -604,7 +606,7 @@ namespace UnitTestGeneratorPlugin.Generator.SpecFlowPlugin
             }
         }
 
-        private void SetUpLogger()
+        public void SetUpLogger()
         {
             var hierarchy = (Hierarchy)LogManager.GetRepository();
             hierarchy.Root.RemoveAllAppenders(); /*Remove any other appenders*/
@@ -620,6 +622,7 @@ namespace UnitTestGeneratorPlugin.Generator.SpecFlowPlugin
             fileAppender.ActivateOptions();
 
             log4net.Config.BasicConfigurator.Configure(fileAppender);
+            SuccessfulLoggerConfiguration = true;
         }
     }
 }
