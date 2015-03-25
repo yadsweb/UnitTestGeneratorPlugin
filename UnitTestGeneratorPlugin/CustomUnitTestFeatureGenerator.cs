@@ -397,11 +397,13 @@ namespace UnitTestGeneratorPlugin.Generator.SpecFlowPlugin
                 if (_appConfig.AppSettings.Settings.AllKeys.Any())
                 {
                     _log.Info("Loading of app.config finished, checking if 'Custom.plugin.generator.configuration' element is present in app.config.");
-                    if(_appConfig.AppSettings.Settings["Custom.plugin.generator.configuration"].ElementInformation.IsPresent)
+                    if(!String.IsNullOrEmpty(_appConfig.AppSettings.Settings["Custom.plugin.generator.configuration"].Value))
                     {
                         _log.Info("Custom.plugin.generator.configuration is present in app.config so initialization was successful.");
                         SuccessfulInitialization = true;
+                        return;
                     }
+                    _log.Info("Custom.plugin.generator.configuration is not present in app.config so initialization was unsuccessful.");
                     SuccessfulInitialization = false;
                 }
                 else
