@@ -75,9 +75,12 @@
     <None Include="packages.config" />
     <None Include="Resources\AppNoAdditionalCategoriesAttribute.config" />
     <None Include="Resources\AppNoAdditionalCategoriesAttributes.config" />
+    <None Include="Resources\AppWithConfigurationProblematicStep.config" />
     <None Include="Resources\AppWithConfigurationSection.config" />
     <None Include="Resources\AppWithConfigurationSectionNoAdditionalTestCaseAttribute.config" />
     <None Include="Resources\AppWithConfigurationSectionNoAdditionalTestCaseAttributes.config" />
+    <None Include="Resources\AppWithConfigurationSectionNoStep.config" />
+    <None Include="Resources\AppWithConfigurationSectionNoSteps.config" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <Import Project="$(SolutionDir)\.nuget\NuGet.targets" Condition="Exists('$(SolutionDir)\.nuget\NuGet.targets')" />
