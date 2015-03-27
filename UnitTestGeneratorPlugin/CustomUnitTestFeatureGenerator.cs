@@ -26,8 +26,9 @@ namespace UnitTestGeneratorPlugin.Generator.SpecFlowPlugin
         public GeneratorPluginConfiguration CustomeConfigurationSection;
         private readonly ILog _log = LogManager.GetLogger(typeof(CustomUnitTestFeatureGenerator));
         public bool SuccessfulInitialization;
-        private readonly string _appconfigFile = Directory.GetCurrentDirectory() + @"\App.config";
-        public bool SuccessfulLoggerConfiguration = false;
+        public bool CustomConfigurationSectionSuccessfulInitialization;
+        public string AppconfigFile = Directory.GetCurrentDirectory() + @"\App.config";
+        public bool SuccessfulLoggerConfiguration;
 
         public CustomUnitTestFeatureGenerator(IUnitTestGeneratorProvider testGeneratorProvider,
             CodeDomHelper codeDomHelper,
@@ -39,11 +40,25 @@ namespace UnitTestGeneratorPlugin.Generator.SpecFlowPlugin
             _rnd = new Random();
         }
 
-        public new CodeNamespace GenerateUnitTestFixture(Feature feature, string testClassName, string targetNamespace)
+        public class Container
+        {
+            public Container(Feature feature, string testClassName, string targetNamespace)
+            {
+                Feature = feature;
+                TestClassName = testClassName;
+                TargetNamespace = targetNamespace;
+            }
+
+            public Feature Feature { get; private set; }
+            public string TestClassName { get; private set; }
+            public string TargetNamespace { get; private set; }
+        }
+
+        public Container TransformFeature(Feature feature, string testClassName, string targetNamespace)
         {
             SetUpLogger();
             _log.Info("Starting custom plug in generator.");
-            InitializeConfiguration(_appconfigFile);
+            InitializeConfiguration(AppconfigFile);
 
             if (!SuccessfulInitialization)
             {
@@ -56,12 +71,12 @@ namespace UnitTestGeneratorPlugin.Generator.SpecFlowPlugin
                     scenario.Tags.Add(new Tag(uniqueTag));
                     _log.Info("Tag '" + uniqueTag + "' added to scenario with name '" + scenario.Title + "'.");
                 }
-                return base.GenerateUnitTestFixture(feature, testClassName, targetNamespace);
+                return new Container(feature, testClassName, targetNamespace);
             }
 
-            InitializeCustomConfigurationSection(_appconfigFile);
+            InitializeCustomConfigurationSection(AppconfigFile);
 
-            if (!CustomeConfigurationSection.ElementInformation.IsPresent)
+            if (!CustomConfigurationSectionSuccessfulInitialization)
             {
                 _log.Info("There is no generator plugin configuration section in app.config.");
                 _log.Info("Only unique id category will be added to generate unit tests for feature '" + feature.Title + "'.");
@@ -156,14 +171,14 @@ namespace UnitTestGeneratorPlugin.Generator.SpecFlowPlugin
 
                                     }
                                     _log.Info(tableContents.Count + " test case attributes retrieved from scenario with name '" + scenario.Title + "' after updating.");
-                                    
+
                                     scenarioOutline.Examples.ExampleSets.First().Table.Body = tableContents.ToArray();
-                                    
+
                                     for (var counter = 0; counter < feature.Scenarios.Count(); counter++)
                                     {
                                         if (feature.Scenarios[counter].Title.Equals(scenario.Title))
                                         {
-                                            _log.Info("Scenario with name '"+scenarioOutline.Title+"' should be on '"+counter+"' place in the fist of scenarios for feature '"+feature.Title+"'.");
+                                            _log.Info("Scenario with name '" + scenarioOutline.Title + "' should be on '" + counter + "' place in the fist of scenarios for feature '" + feature.Title + "'.");
                                             feature.Scenarios[counter] = scenarioOutline;
                                         }
                                     }
@@ -176,7 +191,7 @@ namespace UnitTestGeneratorPlugin.Generator.SpecFlowPlugin
                             else
                             {
                                 _log.Info("Test case attribute filter attribute is not present.");
-                                AddUnFiltratedTestCaseAttributes(scenario, feature);
+                                AddTestCaseAttributes(null, scenario, feature);
                             }
 
                             #endregion
@@ -208,13 +223,7 @@ namespace UnitTestGeneratorPlugin.Generator.SpecFlowPlugin
                                     _log.Info("Clearing all category attributes for scenario '" + scenario.Title + "'");
                                     scenario.Tags = scenario.Tags ?? new Tags();
                                     scenario.Tags.Clear();
-                                    foreach (var category in filteredCategories)
-                                    {
-                                        _log.Info("Adding category attribute with type '" + category.Type + "' and value '" + category.Value + "'");
-                                        scenario.Tags.Add(category.Type.Contains("unique")
-                                            ? new Tag(category.Value + GenerateuniqueId())
-                                            : new Tag(category.Value));
-                                    }
+                                    AddCategoryAttributes(filteredCategories, scenario);
                                 }
                                 else
                                 {
@@ -224,7 +233,7 @@ namespace UnitTestGeneratorPlugin.Generator.SpecFlowPlugin
                             else
                             {
                                 _log.Info("Category filter attribute is not present.");
-                                AddUnFiltratedCategoryAttributes(scenario);
+                                AddCategoryAttributes(null, scenario);
                             }
 
                             #endregion
@@ -253,81 +262,7 @@ namespace UnitTestGeneratorPlugin.Generator.SpecFlowPlugin
                                 _log.Info("Steps returned by the filter method are '" + filteredSteps.Count + "'.");
                                 if (filteredSteps.Count > 0)
                                 {
-                                    foreach (var step in filteredSteps)
-                                    {
-                                        switch (step.Type.ToLower())
-                                        {
-                                            case "given":
-                                                if (Convert.ToInt16(step.Position) > scenario.Steps.Count)
-                                                {
-                                                    _log.Info("Adding step with final text '" + step.Value.Replace("{", "<").Replace("}", ">") + "' and type 'given' on position '" + scenario.Steps.Count + 1 + "' to scenario with name '" + scenario.Title + "'.");
-                                                    scenario.Steps.Add(
-                                                        new Given
-                                                        {
-                                                            Text = step.Value.Replace("{", "<").Replace("}", ">"),
-                                                            Keyword = step.Type
-                                                        });
-                                                }
-                                                else
-                                                {
-                                                    _log.Info("Adding step with final text '" + step.Value.Replace("{", "<").Replace("}", ">") + "' and type 'given' on position '" + scenario.Steps.Count + 1 + "' to scenario with name '" + scenario.Title + "'.");
-                                                    scenario.Steps.Insert(Convert.ToInt16(step.Position),
-                                                        new Given
-                                                        {
-                                                            Text = step.Value.Replace("{", "<").Replace("}", ">"),
-                                                            Keyword = step.Type
-                                                        });
-                                                }
-                                                break;
-                                            case "when":
-                                                if (Convert.ToInt16(step.Position) > scenario.Steps.Count)
-                                                {
-                                                    _log.Info("Adding step with final text '" + step.Value.Replace("{", "<").Replace("}", ">") + "' and type 'when' on position '" + scenario.Steps.Count + 1 + "' to scenario with name '" + scenario.Title + "'.");
-                                                    scenario.Steps.Add(
-                                                        new Given
-                                                        {
-                                                            Text = step.Value.Replace("{", "<").Replace("}", ">"),
-                                                            Keyword = step.Type
-                                                        });
-                                                }
-                                                else
-                                                {
-                                                    _log.Info("Adding step with final text '" + step.Value.Replace("{", "<").Replace("}", ">") + "' and type 'given' on position '" + scenario.Steps.Count + 1 + "' to scenario with name '" + scenario.Title + "'.");
-                                                    scenario.Steps.Insert(Convert.ToInt16(step.Position),
-                                                        new Given
-                                                        {
-                                                            Text = step.Value.Replace("{", "<").Replace("}", ">"),
-                                                            Keyword = step.Type
-                                                        });
-                                                }
-                                                break;
-                                            case "then":
-                                                if (Convert.ToInt16(step.Position) > scenario.Steps.Count)
-                                                {
-                                                    _log.Info("Adding step with final text '" + step.Value.Replace("{", "<").Replace("}", ">") + "' and type 'then' on position '" + scenario.Steps.Count + 1 + "' to scenario with name '" + scenario.Title + "'.");
-                                                    scenario.Steps.Add(
-                                                        new Given
-                                                        {
-                                                            Text = step.Value.Replace("{", "<").Replace("}", ">"),
-                                                            Keyword = step.Type
-                                                        });
-                                                }
-                                                else
-                                                {
-                                                    _log.Info("Adding step with final text '" + step.Value.Replace("{", "<").Replace("}", ">") + "' and type 'given' on position '" + scenario.Steps.Count + 1 + "' to scenario with name '" + scenario.Title + "'.");
-                                                    scenario.Steps.Insert(Convert.ToInt16(step.Position),
-                                                        new Given
-                                                        {
-                                                            Text = step.Value.Replace("{", "<").Replace("}", ">"),
-                                                            Keyword = step.Type
-                                                        });
-                                                }
-                                                break;
-                                            default:
-                                                throw new Exception("Error mentioned type '" + step.Type.ToLower() +
-                                                                    "' didn't match any specflow step type (given, when, then,)!");
-                                        }
-                                    }
+                                    AddSteps(filteredSteps, scenario);
                                 }
                                 else
                                 {
@@ -337,7 +272,7 @@ namespace UnitTestGeneratorPlugin.Generator.SpecFlowPlugin
                             else
                             {
                                 _log.Info("Steps filter attribute is not present.");
-                                AddUnFiltratedSteps(scenario);
+                                AddSteps(null, scenario);
                             }
 
                             #endregion
@@ -351,13 +286,19 @@ namespace UnitTestGeneratorPlugin.Generator.SpecFlowPlugin
                     }
                     else
                     {
-                        AddUnFiltratedTestCaseAttributes(scenario, feature);
-                        AddUnFiltratedCategoryAttributes(scenario);
-                        AddUnFiltratedSteps(scenario);
+                        AddTestCaseAttributes(null, scenario, feature);
+                        AddCategoryAttributes(null, scenario);
+                        AddSteps(null, scenario);
                     }
                 }
             }
-            return base.GenerateUnitTestFixture(feature, testClassName, targetNamespace);
+            return new Container(feature, testClassName, targetNamespace);
+        }
+
+        public new CodeNamespace GenerateUnitTestFixture(Feature feature, string testClassName, string targetNamespace)
+        {
+            var transformedItems = TransformFeature(feature, testClassName, targetNamespace);
+            return base.GenerateUnitTestFixture(transformedItems.Feature, transformedItems.TestClassName, transformedItems.TargetNamespace);
         }
 
         public int GenerateuniqueId()
@@ -374,12 +315,22 @@ namespace UnitTestGeneratorPlugin.Generator.SpecFlowPlugin
 
         public void InitializeCustomConfigurationSection(string appConfig)
         {
-            _log.Info("Initializing custom configuration section with assembly path '" + _appConfig.AppSettings.Settings["Custom.plugin.generator.configuration"].Value + "' app.config file '" + Directory.GetCurrentDirectory() + @"\App.config" + "' and configuration type 'GeneratorPluginConfiguration'.");
-            CustomeConfigurationSection =
-                new GeneratorPluginConfiguration().GetConfig<GeneratorPluginConfiguration>(
-                    _appConfig.AppSettings.Settings["Custom.plugin.generator.configuration"].Value, appConfig,
-                    "GeneratorPluginConfiguration");
-            _log.Info("Initializing finished");
+            try
+            {
+                _log.Info("Initializing custom configuration section with assembly path '" + _appConfig.AppSettings.Settings["Custom.plugin.generator.configuration"].Value + "' app.config file '" + Directory.GetCurrentDirectory() + @"\App.config" + "' and configuration type 'GeneratorPluginConfiguration'.");
+                CustomeConfigurationSection =
+                    new GeneratorPluginConfiguration().GetConfig<GeneratorPluginConfiguration>(
+                        _appConfig.AppSettings.Settings["Custom.plugin.generator.configuration"].Value, appConfig,
+                        "GeneratorPluginConfiguration");
+                _log.Info("Initializing finished");
+                CustomConfigurationSectionSuccessfulInitialization = true;
+            }
+            catch (Exception e)
+            {
+                _log.Info("Initialization of custom plugin configuration section failed because of exception! "+e.Message);
+                CustomConfigurationSectionSuccessfulInitialization = false;
+            }
+
         }
 
         public void InitializeConfiguration(String appConfigFile)
@@ -397,7 +348,7 @@ namespace UnitTestGeneratorPlugin.Generator.SpecFlowPlugin
                 if (_appConfig.AppSettings.Settings.AllKeys.Any())
                 {
                     _log.Info("Loading of app.config finished, checking if 'Custom.plugin.generator.configuration' element is present in app.config.");
-                    if(!String.IsNullOrEmpty(_appConfig.AppSettings.Settings["Custom.plugin.generator.configuration"].Value))
+                    if (!String.IsNullOrEmpty(_appConfig.AppSettings.Settings["Custom.plugin.generator.configuration"].Value))
                     {
                         _log.Info("Custom.plugin.generator.configuration is present in app.config so initialization was successful.");
                         SuccessfulInitialization = true;
@@ -419,13 +370,16 @@ namespace UnitTestGeneratorPlugin.Generator.SpecFlowPlugin
             }
         }
 
-        public void AddUnFiltratedCategoryAttributes(Scenario scenario)
+        public void AddCategoryAttributes(List<AdditionalCategoryAttribute> additionalCategoryAttributes, Scenario scenario)
         {
-            var additionalCategoryAttributes = CustomeConfigurationSection.AdditionalCategoryAttributes;
-
-            if (additionalCategoryAttributes.ElementInformation.IsPresent)
+            if (CustomeConfigurationSection.AdditionalCategoryAttributes.ElementInformation.IsPresent)
             {
-                if (additionalCategoryAttributes.Count > 0)
+                if (additionalCategoryAttributes == null)
+                {
+                    additionalCategoryAttributes = CustomeConfigurationSection.AdditionalCategoryAttributes.Cast<AdditionalCategoryAttribute>().ToList();
+                }
+
+                if (additionalCategoryAttributes.Any())
                 {
                     foreach (AdditionalCategoryAttribute categoryAttribute in additionalCategoryAttributes)
                     {
@@ -447,13 +401,15 @@ namespace UnitTestGeneratorPlugin.Generator.SpecFlowPlugin
             }
         }
 
-        public void AddUnFiltratedTestCaseAttributes(Scenario scenario, Feature feature)
+        public void AddTestCaseAttributes(List<AdditionalTestCaseAttribute> additionalTestCaseAttributes, Scenario scenario, Feature feature)
         {
-            var additionalTestCaseAttributes = CustomeConfigurationSection.AdditionalTestCaseAttributes;
-
-            if (additionalTestCaseAttributes.ElementInformation.IsPresent)
+            if (CustomeConfigurationSection.AdditionalTestCaseAttributes.ElementInformation.IsPresent)
             {
-                if (additionalTestCaseAttributes.Count > 0)
+                if (additionalTestCaseAttributes == null)
+                {
+                    additionalTestCaseAttributes = CustomeConfigurationSection.AdditionalTestCaseAttributes.Cast<AdditionalTestCaseAttribute>().ToList();
+                }
+                if (additionalTestCaseAttributes.Any())
                 {
                     var scenarioOutline = scenario as ScenarioOutline ?? new ScenarioOutline
                     {
@@ -517,16 +473,18 @@ namespace UnitTestGeneratorPlugin.Generator.SpecFlowPlugin
             }
         }
 
-        public void AddUnFiltratedSteps(Scenario scenario)
+        public void AddSteps(List<Step> additionalSteps, Scenario scenario)
         {
-            var additionalSteps = CustomeConfigurationSection.Steps;
-
-            if (additionalSteps.ElementInformation.IsPresent)
+            if (CustomeConfigurationSection.Steps.ElementInformation.IsPresent)
             {
-
-                if (additionalSteps.Count > 0)
+                if (additionalSteps == null)
                 {
-                    foreach (Step step in additionalSteps)
+                    additionalSteps = CustomeConfigurationSection.Steps.Cast<Step>().ToList();
+                }
+
+                if (additionalSteps.Any())
+                {
+                    foreach (var step in additionalSteps)
                     {
                         switch (step.Type.ToLower())
                         {
