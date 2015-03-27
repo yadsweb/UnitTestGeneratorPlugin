@@ -80,6 +80,7 @@
     <None Include="Resources\AppWithConfigurationSection.config" />
     <None Include="Resources\AppWithConfigurationSectionNoAdditionalTestCaseAttribute.config" />
     <None Include="Resources\AppWithConfigurationSectionNoAdditionalTestCaseAttributes.config" />
+    <None Include="Resources\AppWithConfigurationSectionNoFilters.config" />
     <None Include="Resources\AppWithConfigurationSectionNoStep.config" />
     <None Include="Resources\AppWithConfigurationSectionNoSteps.config" />
     <None Include="Resources\AppWithConfigurationSectionNoUnitTestGeneratorPlugin.config" />
