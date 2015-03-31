@@ -6,18 +6,8 @@ namespace UnitTestGeneratorPlugin.Generator.SpecFlowPlugin
 {
     public class GeneratorPluginConfiguration : ConfigurationSection
     {
-        //private static GeneratorPluginConfiguration _config;
         private Assembly _configurationDefiningAssembly;
-
-        //public static GeneratorPluginConfiguration GetConfig()
-        //{
-        //    if (_config == null)
-        //    {
-        //        _config = (GeneratorPluginConfiguration)ConfigurationManager.GetSection("GeneratorPluginConfiguration");
-        //    }
-        //    return _config;
-        //}
-
+        
         public TConfig GetConfig<TConfig>(string configDefiningAssemblyPath,
             string configFilePath, string sectionName) where TConfig : ConfigurationSection
         {

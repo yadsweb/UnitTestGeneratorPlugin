@@ -26,7 +26,7 @@ namespace UnitTestGeneratorPlugin.Generator.SpecFlowPlugin
         public GeneratorPluginConfiguration CustomeConfigurationSection;
         private readonly ILog _log = LogManager.GetLogger(typeof(CustomUnitTestFeatureGenerator));
         public bool SuccessfulInitialization;
-        public bool CustomConfigurationSectionSuccessfulInitialization;
+        private bool _customConfigurationSectionSuccessfulInitialization;
         public string AppconfigFile = Directory.GetCurrentDirectory() + @"\App.config";
         public bool SuccessfulLoggerConfiguration;
 
@@ -76,7 +76,7 @@ namespace UnitTestGeneratorPlugin.Generator.SpecFlowPlugin
 
             InitializeCustomConfigurationSection(AppconfigFile);
 
-            if (!CustomConfigurationSectionSuccessfulInitialization)
+            if (!_customConfigurationSectionSuccessfulInitialization)
             {
                 _log.Info("There is no generator plugin configuration section in app.config.");
                 _log.Info("Only unique id category will be added to generate unit tests for feature '" + feature.Title + "'.");
@@ -323,12 +323,12 @@ namespace UnitTestGeneratorPlugin.Generator.SpecFlowPlugin
                         _appConfig.AppSettings.Settings["Custom.plugin.generator.configuration"].Value, appConfig,
                         "GeneratorPluginConfiguration");
                 _log.Info("Initializing finished");
-                CustomConfigurationSectionSuccessfulInitialization = true;
+                _customConfigurationSectionSuccessfulInitialization = true;
             }
             catch (Exception e)
             {
                 _log.Info("Initialization of custom plugin configuration section failed because of exception! "+e.Message);
-                CustomConfigurationSectionSuccessfulInitialization = false;
+                _customConfigurationSectionSuccessfulInitialization = false;
             }
 
         }
