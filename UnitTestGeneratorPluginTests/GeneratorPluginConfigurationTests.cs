@@ -33,7 +33,7 @@ namespace UnitTestGeneratorPluginTests
         }
 
         [Test]
-        public void InitializeConfigurationNoAppConfigFile()
+        public void InitializeConfigurationUnexistingAppConfigFile()
         {
             var generator = new CustomUnitTestFeatureGenerator(null, null, null, null);
             generator.InitializeConfiguration(Directory.GetCurrentDirectory() + @"\App.config");
