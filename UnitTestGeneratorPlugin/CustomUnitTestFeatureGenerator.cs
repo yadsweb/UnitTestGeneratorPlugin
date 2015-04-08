@@ -98,7 +98,7 @@ namespace UnitTestGeneratorPlugin.Generator.SpecFlowPlugin
                     try
                     {
                         _log.Info("Filter assembly file path property is '" + CustomeConfigurationSection.FilterAssembly.Filepath + "'.");
-                        var assemblyContainingFilter = Assembly.LoadFrom(CustomeConfigurationSection.FilterAssembly.Filepath);
+                        var assemblyContainingFilter = Assembly.Load(File.ReadAllBytes(CustomeConfigurationSection.FilterAssembly.Filepath));
                         var categoriesFilter = CustomeConfigurationSection.AdditionalCategoryAttributeFilter;
                         var stepsFilter = CustomeConfigurationSection.StepFilter;
                         var testCaseAttributeFilter = CustomeConfigurationSection.AdditionalTestCaseAttributeFilter;
