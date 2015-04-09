@@ -109,7 +109,7 @@ namespace UnitTestGeneratorPlugin.Generator.SpecFlowPlugin
                         File.Copy(filterAssemblyPath, assemblyCopyPath);
                         _log.Info("Copy successful!");
 
-                        var assemblyContainingFilter = Assembly.LoadFrom(CustomeConfigurationSection.FilterAssembly.Filepath.Replace(".dll", "1.dll"));
+                        var assemblyContainingFilter = Assembly.LoadFrom(assemblyCopyPath);
                         
                         var categoriesFilter = CustomeConfigurationSection.AdditionalCategoryAttributeFilter;
                         var stepsFilter = CustomeConfigurationSection.StepFilter;
