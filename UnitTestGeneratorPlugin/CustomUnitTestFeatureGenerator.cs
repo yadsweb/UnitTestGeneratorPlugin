@@ -97,8 +97,20 @@ namespace UnitTestGeneratorPlugin.Generator.SpecFlowPlugin
                     _log.Info("Filter assembly element is present in the plugin configuration section.");
                     try
                     {
-                        _log.Info("Filter assembly file path property is '" + CustomeConfigurationSection.FilterAssembly.Filepath + "'.");
-                        var assemblyContainingFilter = Assembly.Load(File.ReadAllBytes(CustomeConfigurationSection.FilterAssembly.Filepath));
+                        var filterAssemblyPath = CustomeConfigurationSection.FilterAssembly.Filepath;
+                        _log.Info("Filter assembly file path property is '" + filterAssemblyPath + "'.");
+                        _log.Info("Trying to copy the mentioned assembly to avoid file lock.");
+                        var assemblyCopyPath = Path.GetDirectoryName(filterAssemblyPath) + Path.GetFileNameWithoutExtension(filterAssemblyPath) + "Copy" + Path.GetExtension(filterAssemblyPath);
+                        if (File.Exists(assemblyCopyPath))
+                        {
+                            _log.Info("Copy of used filter assembly already exists in '" + assemblyCopyPath + "' so delete operation will be performed.");
+                            File.Delete(assemblyCopyPath);
+                        }
+                        File.Copy(filterAssemblyPath, assemblyCopyPath);
+                        _log.Info("Copy successful!");
+
+                        var assemblyContainingFilter = Assembly.LoadFrom(CustomeConfigurationSection.FilterAssembly.Filepath.Replace(".dll", "1.dll"));
+                        
                         var categoriesFilter = CustomeConfigurationSection.AdditionalCategoryAttributeFilter;
                         var stepsFilter = CustomeConfigurationSection.StepFilter;
                         var testCaseAttributeFilter = CustomeConfigurationSection.AdditionalTestCaseAttributeFilter;
@@ -274,6 +286,9 @@ namespace UnitTestGeneratorPlugin.Generator.SpecFlowPlugin
                         }
 
                         #endregion
+                        _log.Info("Trying to delete the copy of filter assembly we created ('" + assemblyCopyPath + "').");
+                        File.Delete(assemblyCopyPath);
+                        _log.Info("Delete successful.");
                     }
                     catch (Exception e)
                     {
