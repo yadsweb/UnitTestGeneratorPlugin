@@ -63,6 +63,7 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="AssemblyLoader.cs" />
     <Compile Include="CustomFeatureGeneratorProvider.cs" />
     <Compile Include="CustomGeneratorPlugin.cs" />
     <Compile Include="CustomUnitTestFeatureGenerator.cs" />

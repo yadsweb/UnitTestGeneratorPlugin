@@ -4,7 +4,6 @@ using System.Collections.Generic;
 using System.Configuration;
 using System.IO;
 using System.Linq;
-using System.Reflection;
 using log4net;
 using log4net.Appender;
 using log4net.Layout;
@@ -54,7 +53,7 @@ namespace UnitTestGeneratorPlugin.Generator.SpecFlowPlugin
             public string TargetNamespace { get; private set; }
         }
 
-        public void AdduniqueIdToScenarios(Feature feature)
+        private void AdduniqueIdToScenarios(Feature feature)
         {
             foreach (var scenario in feature.Scenarios)
             {
@@ -99,18 +98,8 @@ namespace UnitTestGeneratorPlugin.Generator.SpecFlowPlugin
                     {
                         var filterAssemblyPath = CustomeConfigurationSection.FilterAssembly.Filepath;
                         _log.Info("Filter assembly file path property is '" + filterAssemblyPath + "'.");
-                        _log.Info("Trying to copy the mentioned assembly to avoid file lock.");
-                        var assemblyCopyPath = Path.GetDirectoryName(filterAssemblyPath) + Path.GetFileNameWithoutExtension(filterAssemblyPath) + "Copy" + Path.GetExtension(filterAssemblyPath);
-                        if (File.Exists(assemblyCopyPath))
-                        {
-                            _log.Info("Copy of used filter assembly already exists in '" + assemblyCopyPath + "' so delete operation will be performed.");
-                            File.Delete(assemblyCopyPath);
-                        }
-                        File.Copy(filterAssemblyPath, assemblyCopyPath);
-                        _log.Info("Copy successful!");
-
-                        var assemblyContainingFilter = Assembly.LoadFrom(assemblyCopyPath);
-                        
+                        var assemblyLoader = new AssemblyLoader();
+                        var assemblyContainingFilter = assemblyLoader.LoadFileCopy(filterAssemblyPath);
                         var categoriesFilter = CustomeConfigurationSection.AdditionalCategoryAttributeFilter;
                         var stepsFilter = CustomeConfigurationSection.StepFilter;
                         var testCaseAttributeFilter = CustomeConfigurationSection.AdditionalTestCaseAttributeFilter;
@@ -286,9 +275,8 @@ namespace UnitTestGeneratorPlugin.Generator.SpecFlowPlugin
                         }
 
                         #endregion
-                        _log.Info("Trying to delete the copy of filter assembly we created ('" + assemblyCopyPath + "').");
-                        File.Delete(assemblyCopyPath);
-                        _log.Info("Delete successful.");
+
+                        assemblyLoader.Dispose();
                     }
                     catch (Exception e)
                     {
