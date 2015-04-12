@@ -525,7 +525,7 @@ namespace UnitTestGeneratorPlugin.Generator.SpecFlowPlugin
                                 }
                                 else
                                 {
-                                    _log.Info("Adding step with final text '" + step.Value.Replace("{", "<").Replace("}", ">") + "' and type 'given' on position '" + scenario.Steps.Count + 1 + "' to scenario with name '" + scenario.Title + "'.");
+                                    _log.Info("Adding step with final text '" + step.Value.Replace("{", "<").Replace("}", ">") + "' and type 'given' on position '" + step.Position + "' to scenario with name '" + scenario.Title + "'.");
                                     scenario.Steps.Insert(Convert.ToInt16(step.Position),
                                         new Given
                                         {
@@ -547,7 +547,7 @@ namespace UnitTestGeneratorPlugin.Generator.SpecFlowPlugin
                                 }
                                 else
                                 {
-                                    _log.Info("Adding step with final text '" + step.Value.Replace("{", "<").Replace("}", ">") + "' and type 'given' on position '" + scenario.Steps.Count + 1 + "' to scenario with name '" + scenario.Title + "'.");
+                                    _log.Info("Adding step with final text '" + step.Value.Replace("{", "<").Replace("}", ">") + "' and type 'given' on position '" + step.Position + "' to scenario with name '" + scenario.Title + "'.");
                                     scenario.Steps.Insert(Convert.ToInt16(step.Position),
                                         new When
                                         {
@@ -569,7 +569,7 @@ namespace UnitTestGeneratorPlugin.Generator.SpecFlowPlugin
                                 }
                                 else
                                 {
-                                    _log.Info("Adding step with final text '" + step.Value.Replace("{", "<").Replace("}", ">") + "' and type 'given' on position '" + scenario.Steps.Count + 1 + "' to scenario with name '" + scenario.Title + "'.");
+                                    _log.Info("Adding step with final text '" + step.Value.Replace("{", "<").Replace("}", ">") + "' and type 'given' on position '" + step.Position + "' to scenario with name '" + scenario.Title + "'.");
                                     scenario.Steps.Insert(Convert.ToInt16(step.Position),
                                         new Then
                                         {
