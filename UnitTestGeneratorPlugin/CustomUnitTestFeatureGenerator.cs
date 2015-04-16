@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Configuration;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using log4net;
 using log4net.Appender;
 using log4net.Layout;
@@ -96,10 +97,27 @@ namespace UnitTestGeneratorPlugin.Generator.SpecFlowPlugin
                     _log.Info("Filter assembly element is present in the plugin configuration section.");
                     try
                     {
-                        var filterAssemblyPath = CustomeConfigurationSection.FilterAssembly.Filepath;
+                        var filterAssemblyPath = Path.GetFullPath(CustomeConfigurationSection.FilterAssembly.Filepath);
                         _log.Info("Filter assembly file path property is '" + filterAssemblyPath + "'.");
-                        var assemblyLoader = new AssemblyLoader();
-                        var assemblyContainingFilter = assemblyLoader.LoadFileCopy(filterAssemblyPath);
+                        Assembly assemblyContainingFilter = null; 
+                        AppDomain.CurrentDomain.AssemblyResolve += CurrentDomain_AssemblyResolve;
+                        foreach (var loadedAssembly in AppDomain.CurrentDomain.GetAssemblies())
+                        {
+                            _log.Debug("Assembly with full name '" + loadedAssembly.FullName + "' is loaded in default app domain with path '" + loadedAssembly.Location + "'");
+                            var assemblyFileName = loadedAssembly.FullName.Split(",".ToCharArray())[0];
+                            var filterAssemblyFileName = Path.GetFileNameWithoutExtension(filterAssemblyPath);
+                            if (assemblyFileName.Equals(filterAssemblyFileName))
+                            {
+                                _log.Debug("Assembly with name '" + assemblyFileName + "', which is same as the filter assembly name already exist in default app domain, so the assembly from the app domain will be used instead of trying to load it again.");
+                                assemblyContainingFilter = loadedAssembly;
+                            }
+                        }
+
+                        if (assemblyContainingFilter == null)
+                        {
+                            assemblyContainingFilter = Assembly.Load(File.ReadAllBytes(filterAssemblyPath));
+                        }
+                        
                         var categoriesFilter = CustomeConfigurationSection.AdditionalCategoryAttributeFilter;
                         var stepsFilter = CustomeConfigurationSection.StepFilter;
                         var testCaseAttributeFilter = CustomeConfigurationSection.AdditionalTestCaseAttributeFilter;
@@ -109,7 +127,7 @@ namespace UnitTestGeneratorPlugin.Generator.SpecFlowPlugin
 
                             if (testCaseAttributeFilter.ElementInformation.IsPresent)
                             {
-                                _log.Info("Test case attribute filter element is present with class name '" + categoriesFilter.Classname + "' and method '" + categoriesFilter.Method + "' properties.");
+                                _log.Info("Test case attribute filter element is present with class name '" + testCaseAttributeFilter.Classname + "' and method '" + testCaseAttributeFilter.Method + "' properties.");
 
                                 var rawTestCaseAttribute = new List<AdditionalTestCaseAttribute>();
 
@@ -299,7 +317,6 @@ namespace UnitTestGeneratorPlugin.Generator.SpecFlowPlugin
                             _log.Error(e.Message);
                             _log.Error(e.StackTrace);
                         }
-                        assemblyLoader.Dispose();
                     }
                     catch (Exception e)
                     {
@@ -612,6 +629,22 @@ namespace UnitTestGeneratorPlugin.Generator.SpecFlowPlugin
 
             log4net.Config.BasicConfigurator.Configure(fileAppender);
             SuccessfulLoggerConfiguration = true;
+        }
+
+        private Assembly CurrentDomain_AssemblyResolve(object sender, ResolveEventArgs args)
+        {
+            _log.Debug("Resolving dependency with name : " + args.Name);
+            var pathToDependancy = "";
+            foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
+            {
+                if (assembly.FullName.Equals(args.Name))
+                {
+                    pathToDependancy = assembly.Location;
+                    break;
+                }
+            }
+            _log.Info("Assembly we are trying to load is located in: " + pathToDependancy);
+            return Assembly.LoadFile(pathToDependancy);
         }
     }
 }
