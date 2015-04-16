@@ -63,12 +63,12 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="AssemblyLoader.cs" />
     <Compile Include="CustomFeatureGeneratorProvider.cs" />
     <Compile Include="CustomGeneratorPlugin.cs" />
     <Compile Include="CustomUnitTestFeatureGenerator.cs" />
     <Compile Include="GeneratorPluginConfiguration.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="Proxy.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="App.config" />

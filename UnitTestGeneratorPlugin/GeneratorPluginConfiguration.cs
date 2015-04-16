@@ -225,8 +225,9 @@ namespace UnitTestGeneratorPlugin.Generator.SpecFlowPlugin
             return ((AdditionalCategoryAttribute)element).Value;
         }
     }
-
-    public class AdditionalTestCaseAttribute : ConfigurationElement
+    
+    [Serializable]
+    public sealed class AdditionalTestCaseAttribute : ConfigurationElement
     {
 
         [ConfigurationProperty("type", IsRequired = true)]

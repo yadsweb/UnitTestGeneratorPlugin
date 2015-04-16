@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Configuration;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using log4net;
 using log4net.Appender;
 using log4net.Layout;
@@ -98,8 +99,9 @@ namespace UnitTestGeneratorPlugin.Generator.SpecFlowPlugin
                     {
                         var filterAssemblyPath = CustomeConfigurationSection.FilterAssembly.Filepath;
                         _log.Info("Filter assembly file path property is '" + filterAssemblyPath + "'.");
-                        var assemblyLoader = new AssemblyLoader();
-                        var assemblyContainingFilter = assemblyLoader.LoadFileCopy(filterAssemblyPath);
+                        
+
+                        
                         var categoriesFilter = CustomeConfigurationSection.AdditionalCategoryAttributeFilter;
                         var stepsFilter = CustomeConfigurationSection.StepFilter;
                         var testCaseAttributeFilter = CustomeConfigurationSection.AdditionalTestCaseAttributeFilter;
@@ -109,7 +111,7 @@ namespace UnitTestGeneratorPlugin.Generator.SpecFlowPlugin
 
                             if (testCaseAttributeFilter.ElementInformation.IsPresent)
                             {
-                                _log.Info("Test case attribute filter element is present with class name '" + categoriesFilter.Classname + "' and method '" + categoriesFilter.Method + "' properties.");
+                                _log.Info("Test case attribute filter element is present with class name '" + testCaseAttributeFilter.Classname + "' and method '" + testCaseAttributeFilter.Method + "' properties.");
 
                                 var rawTestCaseAttribute = new List<AdditionalTestCaseAttribute>();
 
@@ -122,15 +124,66 @@ namespace UnitTestGeneratorPlugin.Generator.SpecFlowPlugin
                                     rawTestCaseAttribute.Add(((AdditionalTestCaseAttribute)testCaseAttribute));
                                 }
 
-                                _log.Info("Loaded filter assembly is '" + assemblyContainingFilter.GetName() + "'.");
-                                var filterType = assemblyContainingFilter.GetType(testCaseAttributeFilter.Classname);
-                                _log.Info("Test case attribute filter type is '" + filterType.Name + "' creating method info object.");
-                                var methodInfo = filterType.GetMethod(testCaseAttributeFilter.Method,
-                                    new[] { typeof(List<AdditionalTestCaseAttribute>), typeof(Scenario) });
-                                var o = Activator.CreateInstance(filterType);
-                                var filteredTestCaseAttributes =
-                                    (List<GherkinTableRow>)
-                                        methodInfo.Invoke(o, new object[] { rawTestCaseAttribute, scenario });
+                                //------------- research ------------------
+
+                                var domainSetup = new AppDomainSetup
+                                {
+                                    ApplicationName = "MyDomain",
+                                    ApplicationBase = Environment.CurrentDirectory
+                                };
+
+                                // *** Point at current directory
+
+                                var domain = AppDomain.CreateDomain("MyDomain", null, domainSetup);
+                                AppDomain.CurrentDomain.AssemblyResolve += CurrentDomain_AssemblyResolve;
+
+                                // loads proxy class into new domain               
+                                Type myType = typeof(Proxy);
+
+                                var test = myType.Assembly.FullName;
+                                var test1 = myType.FullName;
+
+                                _log.Info("Default domain application base -------->" + AppDomain.CurrentDomain.BaseDirectory);
+                                _log.Info("New domain application base -------->" + domain.BaseDirectory);
+                                _log.Info("My type assembly full name -------->" + test);
+                                _log.Info("My type full name -------->" + test1);
+                                _log.Info("Currently loaded assemblies in default appDomain");
+                                foreach (var aaa in AppDomain.CurrentDomain.GetAssemblies())
+                                {
+                                    _log.Info(aaa.FullName);
+                                    _log.Info("Path is: " + aaa.Location);
+                                    domain.Load(File.ReadAllBytes(aaa.Location));
+                                }
+                                _log.Info("load finised ----------------------------------------------------------------------------------------------");
+
+                                _log.Info("Currently loaded assemblies in the new appDomain");
+                                foreach (var aaa in domain.GetAssemblies())
+                                {
+                                    _log.Info(aaa.FullName);
+                                    _log.Info("Path is: "+aaa.Location);
+                                }
+                                _log.Info("load finised ----------------------------------------------------------------------------------------------");
+
+                                var value = (Proxy)domain.CreateInstanceAndUnwrap(
+                                         myType.Assembly.FullName,
+                                         myType.FullName);
+                                //DoWork:- loads assembly into domain
+                                // calls methods, returns result       
+                                Console.WriteLine("tolololo");
+                                //var filteredTestCaseAttributes = value.DoWork(filterAssemblyPath, rawTestCaseAttribute, scenario, testCaseAttributeFilter.Classname, testCaseAttributeFilter.Method);
+                                var filteredTestCaseAttributes = new List<GherkinTableRow>{new GherkinTableRow(new GherkinTableCell("trolololo"))};
+                                _log.Info("assembly path is -> " + filterAssemblyPath);
+                                var filteredTestCaseAttributes1 = value.DoWork1(filterAssemblyPath, new List<AdditionalTestCaseAttribute>{new AdditionalTestCaseAttribute()});
+                                _log.Info("Returned value is: -> " + filteredTestCaseAttributes1);
+                                Console.WriteLine("tolololo2");
+                                //Unload domain and thus assembly
+                                Assembly[] list1 = AppDomain.CurrentDomain.GetAssemblies();
+                                AppDomain.Unload(domain);
+                                //Assembly not present in current domain
+                                Assembly[] list = AppDomain.CurrentDomain.GetAssemblies();
+
+                                //------------- end of research -----------
+
                                 _log.Info("Test case attribute rows returned by the filter method are '" + filteredTestCaseAttributes.Count + "'.");
                                 if (filteredTestCaseAttributes.Count > 0)
                                 {
@@ -202,104 +255,103 @@ namespace UnitTestGeneratorPlugin.Generator.SpecFlowPlugin
                             _log.Error(e.Message);
                             _log.Error(e.StackTrace);
                         }
-                        try
-                        {
-                            #region Categories filtering
+                        //try
+                        //{
+                        //    #region Categories filtering
 
-                            if (categoriesFilter.ElementInformation.IsPresent)
-                            {
-                                _log.Info("Categories filter element is present with class name '" + categoriesFilter.Classname + "' and method '" + categoriesFilter.Method + "' properties.");
-                                var rawCategories = new List<AdditionalCategoryAttribute>();
-                                _log.Info("Creating a temporal list with category attributes which will be send to the filter method.");
-                                foreach (var categoryAttribute in CustomeConfigurationSection.AdditionalCategoryAttributes)
-                                {
-                                    _log.Info("Adding category with type '" + ((AdditionalCategoryAttribute)categoryAttribute).Type + "' and value '" + ((AdditionalCategoryAttribute)categoryAttribute).Value + " to the temporary list");
-                                    rawCategories.Add(((AdditionalCategoryAttribute)categoryAttribute));
-                                }
-                                _log.Info("Loaded filter assembly is '" + assemblyContainingFilter.GetName() + "'.");
-                                var filterType = assemblyContainingFilter.GetType(categoriesFilter.Classname);
-                                _log.Info("Category filter type is '" + filterType.Name + "'.");
-                                var methodInfo = filterType.GetMethod(categoriesFilter.Method,
-                                    new[] { typeof(List<AdditionalCategoryAttribute>), typeof(Scenario) });
-                                var o = Activator.CreateInstance(filterType);
-                                var filteredCategories =
-                                    (List<AdditionalCategoryAttribute>)
-                                        methodInfo.Invoke(o, new object[] { rawCategories, scenario });
-                                _log.Info("Categories returned by the filter method are '" + filteredCategories.Count + "'.");
-                                if (filteredCategories.Count > 0)
-                                {
-                                    _log.Info("Clearing all category attributes for scenario '" + scenario.Title + "'");
-                                    scenario.Tags = scenario.Tags ?? new Tags();
-                                    scenario.Tags.Clear();
-                                    AddCategoryAttributes(filteredCategories, scenario);
-                                }
-                                else
-                                {
-                                    _log.Info("Categories returned by the filter type are 0 so no actions will be taken.");
-                                }
-                            }
-                            else
-                            {
-                                _log.Info("Category filter element is not present.");
-                                AddCategoryAttributes(null, scenario);
-                            }
+                        //    if (categoriesFilter.ElementInformation.IsPresent)
+                        //    {
+                        //        _log.Info("Categories filter element is present with class name '" + categoriesFilter.Classname + "' and method '" + categoriesFilter.Method + "' properties.");
+                        //        var rawCategories = new List<AdditionalCategoryAttribute>();
+                        //        _log.Info("Creating a temporal list with category attributes which will be send to the filter method.");
+                        //        foreach (var categoryAttribute in CustomeConfigurationSection.AdditionalCategoryAttributes)
+                        //        {
+                        //            _log.Info("Adding category with type '" + ((AdditionalCategoryAttribute)categoryAttribute).Type + "' and value '" + ((AdditionalCategoryAttribute)categoryAttribute).Value + " to the temporary list");
+                        //            rawCategories.Add(((AdditionalCategoryAttribute)categoryAttribute));
+                        //        }
+                        //        _log.Info("Loaded filter assembly is '" + assemblyContainingFilter.GetName() + "'.");
+                        //        var filterType = assemblyContainingFilter.GetType(categoriesFilter.Classname);
+                        //        _log.Info("Category filter type is '" + filterType.Name + "'.");
+                        //        var methodInfo = filterType.GetMethod(categoriesFilter.Method,
+                        //            new[] { typeof(List<AdditionalCategoryAttribute>), typeof(Scenario) });
+                        //        var o = Activator.CreateInstance(filterType);
+                        //        var filteredCategories =
+                        //            (List<AdditionalCategoryAttribute>)
+                        //                methodInfo.Invoke(o, new object[] { rawCategories, scenario });
+                        //        _log.Info("Categories returned by the filter method are '" + filteredCategories.Count + "'.");
+                        //        if (filteredCategories.Count > 0)
+                        //        {
+                        //            _log.Info("Clearing all category attributes for scenario '" + scenario.Title + "'");
+                        //            scenario.Tags = scenario.Tags ?? new Tags();
+                        //            scenario.Tags.Clear();
+                        //            AddCategoryAttributes(filteredCategories, scenario);
+                        //        }
+                        //        else
+                        //        {
+                        //            _log.Info("Categories returned by the filter type are 0 so no actions will be taken.");
+                        //        }
+                        //    }
+                        //    else
+                        //    {
+                        //        _log.Info("Category filter element is not present.");
+                        //        AddCategoryAttributes(null, scenario);
+                        //    }
 
-                            #endregion
-                        }
-                        catch (Exception e)
-                        {
-                            _log.Error("When trying to filter category attributes by filter with class name '" + categoriesFilter.Classname + "' and method name '" + categoriesFilter.Method + "'!");
-                            _log.Error(e.Message);
-                            _log.Error(e.StackTrace);
-                        }
-                        try
-                        {
-                            #region Steps filtering
+                        //    #endregion
+                        //}
+                        //catch (Exception e)
+                        //{
+                        //    _log.Error("When trying to filter category attributes by filter with class name '" + categoriesFilter.Classname + "' and method name '" + categoriesFilter.Method + "'!");
+                        //    _log.Error(e.Message);
+                        //    _log.Error(e.StackTrace);
+                        //}
+                        //try
+                        //{
+                        //    #region Steps filtering
 
-                            if (stepsFilter.ElementInformation.IsPresent)
-                            {
-                                _log.Info("Steps filter element is present with class name '" + stepsFilter.Classname + "' and method '" + stepsFilter.Method + "' properties.");
-                                var rawSteps = new List<Step>();
-                                _log.Info("Creating a temporal list with steps which will be send to the filter method.");
-                                foreach (var step in CustomeConfigurationSection.Steps)
-                                {
-                                    _log.Info("Adding step with type '" + ((Step)step).Type + "' and value '" + ((Step)step).Value + " to the temporary list");
-                                    rawSteps.Add(((Step)step));
-                                }
-                                _log.Info("Loaded filter assembly is '" + assemblyContainingFilter.GetName() + "'.");
-                                var filterType = assemblyContainingFilter.GetType(stepsFilter.Classname);
-                                _log.Info("Step filter type is '" + filterType.Name + "'.");
-                                var methodInfo = filterType.GetMethod(stepsFilter.Method,
-                                    new[] { typeof(List<Step>), typeof(Scenario) });
-                                var o = Activator.CreateInstance(filterType);
-                                var filteredSteps =
-                                    (List<Step>)
-                                        methodInfo.Invoke(o, new object[] { rawSteps, scenario });
-                                _log.Info("Steps returned by the filter method are '" + filteredSteps.Count + "'.");
-                                if (filteredSteps.Count > 0)
-                                {
-                                    AddSteps(filteredSteps, scenario);
-                                }
-                                else
-                                {
-                                    _log.Info("Steps returned by the filter type are 0 so no actions will be taken.");
-                                }
-                            }
-                            else
-                            {
-                                _log.Info("Steps filter attribute is not present.");
-                                AddSteps(null, scenario);
-                            }
+                        //    if (stepsFilter.ElementInformation.IsPresent)
+                        //    {
+                        //        _log.Info("Steps filter element is present with class name '" + stepsFilter.Classname + "' and method '" + stepsFilter.Method + "' properties.");
+                        //        var rawSteps = new List<Step>();
+                        //        _log.Info("Creating a temporal list with steps which will be send to the filter method.");
+                        //        foreach (var step in CustomeConfigurationSection.Steps)
+                        //        {
+                        //            _log.Info("Adding step with type '" + ((Step)step).Type + "' and value '" + ((Step)step).Value + " to the temporary list");
+                        //            rawSteps.Add(((Step)step));
+                        //        }
+                        //        _log.Info("Loaded filter assembly is '" + assemblyContainingFilter.GetName() + "'.");
+                        //        var filterType = assemblyContainingFilter.GetType(stepsFilter.Classname);
+                        //        _log.Info("Step filter type is '" + filterType.Name + "'.");
+                        //        var methodInfo = filterType.GetMethod(stepsFilter.Method,
+                        //            new[] { typeof(List<Step>), typeof(Scenario) });
+                        //        var o = Activator.CreateInstance(filterType);
+                        //        var filteredSteps =
+                        //            (List<Step>)
+                        //                methodInfo.Invoke(o, new object[] { rawSteps, scenario });
+                        //        _log.Info("Steps returned by the filter method are '" + filteredSteps.Count + "'.");
+                        //        if (filteredSteps.Count > 0)
+                        //        {
+                        //            AddSteps(filteredSteps, scenario);
+                        //        }
+                        //        else
+                        //        {
+                        //            _log.Info("Steps returned by the filter type are 0 so no actions will be taken.");
+                        //        }
+                        //    }
+                        //    else
+                        //    {
+                        //        _log.Info("Steps filter attribute is not present.");
+                        //        AddSteps(null, scenario);
+                        //    }
 
-                            #endregion
-                        }
-                        catch (Exception e)
-                        {
-                            _log.Error("When trying to filter steps by filter with class name '" + stepsFilter.Classname + "' and method name '" + stepsFilter.Method + "'!");
-                            _log.Error(e.Message);
-                            _log.Error(e.StackTrace);
-                        }
-                        assemblyLoader.Dispose();
+                        //    #endregion
+                        //}
+                        //catch (Exception e)
+                        //{
+                        //    _log.Error("When trying to filter steps by filter with class name '" + stepsFilter.Classname + "' and method name '" + stepsFilter.Method + "'!");
+                        //    _log.Error(e.Message);
+                        //    _log.Error(e.StackTrace);
+                        //}
                     }
                     catch (Exception e)
                     {
@@ -612,6 +664,25 @@ namespace UnitTestGeneratorPlugin.Generator.SpecFlowPlugin
 
             log4net.Config.BasicConfigurator.Configure(fileAppender);
             SuccessfulLoggerConfiguration = true;
+        }
+        public Assembly CurrentDomain_AssemblyResolve(object sender, ResolveEventArgs args)
+        {
+            //string[] tokens = args.Name.Split(",".ToCharArray());
+            _log.Info("Resolving : " + args.Name);
+
+            var pathToDependancy ="";
+
+            foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
+            {
+                if (assembly.FullName.Equals(args.Name))
+                {
+                    pathToDependancy = assembly.Location;
+                    break;
+                }
+            }
+
+            _log.Info("The assembly we are trying to load is in: " + pathToDependancy);
+            return Assembly.LoadFile(pathToDependancy);
         }
     }
 }
