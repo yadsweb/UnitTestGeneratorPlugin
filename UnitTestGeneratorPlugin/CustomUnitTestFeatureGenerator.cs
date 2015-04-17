@@ -144,11 +144,11 @@ namespace UnitTestGeneratorPlugin.Generator.SpecFlowPlugin
                                 var filterType = assemblyContainingFilter.GetType(testCaseAttributeFilter.Classname);
                                 _log.Info("Test case attribute filter type is '" + filterType.Name + "' creating method info object.");
                                 var methodInfo = filterType.GetMethod(testCaseAttributeFilter.Method,
-                                    new[] { typeof(List<AdditionalTestCaseAttribute>), typeof(Scenario) });
+                                    new[] { typeof(List<AdditionalTestCaseAttribute>), typeof(Scenario), typeof(ILog) });
                                 var o = Activator.CreateInstance(filterType);
                                 var filteredTestCaseAttributes =
                                     (List<GherkinTableRow>)
-                                        methodInfo.Invoke(o, new object[] { rawTestCaseAttribute, scenario });
+                                        methodInfo.Invoke(o, new object[] { rawTestCaseAttribute, scenario, _log });
                                 _log.Info("Test case attribute rows returned by the filter method are '" + filteredTestCaseAttributes.Count + "'.");
                                 if (filteredTestCaseAttributes.Count > 0)
                                 {
@@ -238,11 +238,11 @@ namespace UnitTestGeneratorPlugin.Generator.SpecFlowPlugin
                                 var filterType = assemblyContainingFilter.GetType(categoriesFilter.Classname);
                                 _log.Info("Category filter type is '" + filterType.Name + "'.");
                                 var methodInfo = filterType.GetMethod(categoriesFilter.Method,
-                                    new[] { typeof(List<AdditionalCategoryAttribute>), typeof(Scenario) });
+                                    new[] { typeof(List<AdditionalCategoryAttribute>), typeof(Scenario), typeof(ILog) });
                                 var o = Activator.CreateInstance(filterType);
                                 var filteredCategories =
                                     (List<AdditionalCategoryAttribute>)
-                                        methodInfo.Invoke(o, new object[] { rawCategories, scenario });
+                                        methodInfo.Invoke(o, new object[] { rawCategories, scenario, _log });
                                 _log.Info("Categories returned by the filter method are '" + filteredCategories.Count + "'.");
                                 if (filteredCategories.Count > 0)
                                 {
@@ -288,11 +288,11 @@ namespace UnitTestGeneratorPlugin.Generator.SpecFlowPlugin
                                 var filterType = assemblyContainingFilter.GetType(stepsFilter.Classname);
                                 _log.Info("Step filter type is '" + filterType.Name + "'.");
                                 var methodInfo = filterType.GetMethod(stepsFilter.Method,
-                                    new[] { typeof(List<Step>), typeof(Scenario) });
+                                    new[] { typeof(List<Step>), typeof(Scenario), typeof(ILog) });
                                 var o = Activator.CreateInstance(filterType);
                                 var filteredSteps =
                                     (List<Step>)
-                                        methodInfo.Invoke(o, new object[] { rawSteps, scenario });
+                                        methodInfo.Invoke(o, new object[] { rawSteps, scenario, _log });
                                 _log.Info("Steps returned by the filter method are '" + filteredSteps.Count + "'.");
                                 if (filteredSteps.Count > 0)
                                 {
