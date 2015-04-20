@@ -99,7 +99,7 @@ namespace UnitTestGeneratorPlugin.Generator.SpecFlowPlugin
                     {
                         var filterAssemblyPath = Path.GetFullPath(CustomeConfigurationSection.FilterAssembly.Filepath);
                         _log.Info("Filter assembly file path property is '" + filterAssemblyPath + "'.");
-                        Assembly assemblyContainingFilter = null; 
+                        Assembly assemblyContainingFilter = null;
                         AppDomain.CurrentDomain.AssemblyResolve += CurrentDomain_AssemblyResolve;
                         foreach (var loadedAssembly in AppDomain.CurrentDomain.GetAssemblies())
                         {
@@ -117,7 +117,7 @@ namespace UnitTestGeneratorPlugin.Generator.SpecFlowPlugin
                         {
                             assemblyContainingFilter = Assembly.Load(File.ReadAllBytes(filterAssemblyPath));
                         }
-                        
+
                         var categoriesFilter = CustomeConfigurationSection.AdditionalCategoryAttributeFilter;
                         var stepsFilter = CustomeConfigurationSection.StepFilter;
                         var testCaseAttributeFilter = CustomeConfigurationSection.AdditionalTestCaseAttributeFilter;
@@ -174,12 +174,18 @@ namespace UnitTestGeneratorPlugin.Generator.SpecFlowPlugin
                                     _log.Info("Clearing the content of retrieve table.");
                                     tableContents.Clear();
 
+                                    var headerRow = scenarioOutline.Examples.ExampleSets.First().Table.Header.Cells.ToList();
+                                    var headerRowTmp = headerRow.Where((t, i) => i != 0).ToList();
+                                    var categoryTypes = new List<string>();
+                                    var tempAttribute = new List<string>();
+
                                     foreach (var testCaseAttributeRow in filteredTestCaseAttributes)
                                     {
                                         _log.Info("Trying to add test case attribute row with cells: ");
 
                                         foreach (var cell in testCaseAttributeRow.Cells)
                                         {
+                                            tempAttribute.Add(cell.Value);
                                             _log.Info(cell.Value);
                                         }
 
@@ -188,6 +194,21 @@ namespace UnitTestGeneratorPlugin.Generator.SpecFlowPlugin
                                         tableContents.Add(testCaseAttributeRow);
 
                                     }
+
+                                    foreach (var testCaseAttribute in rawTestCaseAttribute)
+                                    {
+                                        foreach (var categoryValue in tempAttribute)
+                                        {
+                                            if (testCaseAttribute.Value.Contains(categoryValue) && !categoryTypes.Contains(testCaseAttribute.Type))
+                                            {
+                                                _log.Info("Adding '" + testCaseAttribute.Type + "' to the header row cells of scenario '" + scenario.Title + "'.");
+                                                categoryTypes.Add(testCaseAttribute.Type);
+                                                headerRowTmp.Add(new GherkinTableCell(testCaseAttribute.Type));
+                                            }
+                                        }
+                                    }
+
+                                    scenarioOutline.Examples.ExampleSets.First().Table.Header.Cells = headerRowTmp.ToArray();
                                     _log.Info(tableContents.Count + " test case attributes retrieved from scenario with name '" + scenario.Title + "' after updating.");
 
                                     scenarioOutline.Examples.ExampleSets.First().Table.Body = tableContents.ToArray();
@@ -467,6 +488,26 @@ namespace UnitTestGeneratorPlugin.Generator.SpecFlowPlugin
                                         new GherkinTableRow[0])
                             })
                     };
+
+                    var headerRow = scenarioOutline.Examples.ExampleSets.First().Table.Header.Cells.ToList();
+                    var headerRowTmp = headerRow.Where((t, i) => i != 0).ToList();
+                    if (!headerRowTmp.Any())
+                    {
+                        var categoryTypes = new List<string>();
+                        foreach (var additionalTestCaseAttribute in additionalTestCaseAttributes)
+                        {
+                            if (!categoryTypes.Contains(additionalTestCaseAttribute.Type))
+                            {
+                                _log.Info("Adding '" + additionalTestCaseAttribute.Type +
+                                          "' to the header row cells of scenario '" + scenario.Title + "'.");
+                                categoryTypes.Add(additionalTestCaseAttribute.Type);
+                                headerRowTmp.Add(new GherkinTableCell(additionalTestCaseAttribute.Type));
+                            }
+                            _log.Info("Type '" + additionalTestCaseAttribute.Type +
+                                      "' is already added to the header row cells of scenario '" + scenario.Title + "'.");
+                        }
+                        scenarioOutline.Examples.ExampleSets.First().Table.Header.Cells = headerRowTmp.ToArray();
+                    }
 
                     var tableContents = scenarioOutline.Examples.ExampleSets.First().Table.Body.ToList();
 
