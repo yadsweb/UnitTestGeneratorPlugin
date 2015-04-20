@@ -103,7 +103,15 @@ namespace UnitTestGeneratorPlugin.Generator.SpecFlowPlugin
                         AppDomain.CurrentDomain.AssemblyResolve += CurrentDomain_AssemblyResolve;
                         foreach (var loadedAssembly in AppDomain.CurrentDomain.GetAssemblies())
                         {
-                            _log.Debug("Assembly with full name '" + loadedAssembly.FullName + "' is loaded in default app domain with path '" + loadedAssembly.Location + "'");
+                            try
+                            {
+                                _log.Debug("Assembly with full name '" + loadedAssembly.FullName + "' is loaded in default app domain with path '" + loadedAssembly.Location + "'");
+
+                            }
+                            catch (Exception)
+                            {
+                                _log.Error("Exception appear when trying to get the location of '" + loadedAssembly.FullName + "'!");
+                            }
                             var assemblyFileName = loadedAssembly.FullName.Split(",".ToCharArray())[0];
                             var filterAssemblyFileName = Path.GetFileNameWithoutExtension(filterAssemblyPath);
                             if (assemblyFileName.Equals(filterAssemblyFileName))
