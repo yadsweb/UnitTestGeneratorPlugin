@@ -8,22 +8,22 @@ The main idea of this plug in is to:
 
 1. If no configuration element is app.config file is provided to just add unique category to each scenario. The unique category added by default is 'uniqueId:998349' where the number is randomly generated and the prefix is a constant. This category can be used by the 'NunitTestsParallelConsoleRunner' to run scenarios in parallel.
 
-2. If configuration element is provided in app.config then the plug in can be used to add category attributes, test case attributes and steps to generated unit tests. It actually intercept the generation and insert mentioned attributes and steps and don't interfere with the normal work of the generator. 
+2. If configuration element is provided in app.config then the plugin can be used to add category attributes, test case attributes and steps to generated unit tests. It actually intercept the generation and insert mentioned attributes and steps and don't interfere with the normal work of the generator. 
 
 How to use? 
 ==================
 
-The plug in is just a spec flow generator plug, so to use it in app.config following entry should be added in the “```xml <specFlow> ```” section. 
+The plug in is just a spec flow generator plug, so to use it in app.config, following entry should be added in the “```<specFlow> ```” section. 
 
 ```
 <plugins><add name="UnitTestGeneratorPlugin.Generator" path="..\UnitTestGeneratorPlugin\bin\Debug" /></plugins> 
 ```
 
-Where the pat is the location of  “UnitTestGeneratorPlugin.Generator.SpecFlowPlugin.dll” and all relevant libs. 
+Where the path is the location of “UnitTestGeneratorPlugin.Generator.SpecFlowPlugin.dll” and all relevant libs. 
 
-1. If only the default behavior is needed then changing the app.config will be enough to enable the plug in. 
+1. If only the default behavior is needed then changing the app.config will be enough to enable the plugin. 
 
-2. If specific configuration for the plug in is needed then custom configuration section needs to be added in app.config and a property in “App setting” section which points to the location of the dll which contains the configuration section (the dll is actually the plug in itself so it should again point to “UnitTestGeneratorPlugin.Generator.SpecFlowPlugin.dll”)
+2. If specific configuration for the plugin is needed, then custom configuration section need to be added in app.config. Relevant property in “App setting” section which points to the location of the dll containing the configuration section (the dll is actually the plug in itself so it should again point to “UnitTestGeneratorPlugin.Generator.SpecFlowPlugin.dll”) should be added too.
 
 Example: 
 ```
@@ -71,8 +71,8 @@ Additions explanation
 
 The plug in can add 3 ting to generate unit tests, this things are: 
 
-Category attributes presented by: ```xml <AdditionalCategoryAttribute type="unique" value="uniqueId:w" /> ```
-Test case attributes presented by: ```xml <AdditionalTestCaseAttribute type="Site" value="Bingo Godz" /> ```
+Category attributes presented by: ```<AdditionalCategoryAttribute type="unique" value="uniqueId:w" /> ```
+Test case attributes presented by: ```<AdditionalTestCaseAttribute type="Site" value="Bingo Godz" /> ```
 Steps presented by: ```xml <Step position="1" type="Given" value="Write message for test start with {Browser} and {Site}" /> ```
 
 Each of this elements have specific properties: 
@@ -93,7 +93,7 @@ Example:
 For steps element there is additional property called “position”, this is actually the position on which the step needs to be added in the scenario, if position is bigger then the position of last step then step will be added as last step. The type property here specifies type of step. Types should be “given”, “when” and “then” this mean that if other type is used exception will be thrown. Important here is that since steps parameters are marked as <param> and we are using xml format then in the xml we use {} which during generation will be replaced by <>. 
 
 Example: 
-```xml <Step position="4" type="Given" value="I am on the {Site} site" /> ```
+```xml <Step position="4" type="Given" value="I am on the {Site} site" />```
 
 will be translated to: 
 
@@ -125,15 +125,15 @@ All other filters are working exactly the same way, how ever important here is t
 All filtering method signitures should be like this: 
 
 ```
-public List <Step> StepsFilter(List<Step> param, Scenario scenario)
+public List <Step> StepsFilter(List<Step> param, Scenario scenario, ILog log)
 ```
 
 ```
-public List<AdditionalCategoryAttribute> CategoriesFilter(List<AdditionalCategoryAttribute> param, Scenario scenario)
+public List<AdditionalCategoryAttribute> CategoriesFilter(List<AdditionalCategoryAttribute> param, Scenario scenario, ILog log)
 ```
  
 ```
-public List<GherkinTableRow> TestCaseAttributeFilter(List<AdditionalTestCaseAttribute> param, Scenario scenario)
+public List<GherkinTableRow> TestCaseAttributeFilter(List<AdditionalTestCaseAttribute> param, Scenario scenario, ILog log)
 ``` 
 
 If the Filter assembly attribute is not present in the configuration section then all additions like additional categories, test case attributes and steps will be added. If filter assembly is present but some of the filters is not present then all items from relevant section will be added. 
