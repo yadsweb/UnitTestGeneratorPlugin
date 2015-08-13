@@ -165,21 +165,44 @@ namespace UnitTestGeneratorPlugin.Generator.SpecFlowPlugin
 
     public class AdditionalCategoryAttribute : ConfigurationElement
     {
+        private bool _typeSet;
+        private bool _valueSet;
+        private string _type;
+        private string _value;
 
         [ConfigurationProperty("type", IsRequired = true)]
         public string Type
         {
             get
             {
+                if (_typeSet)
+                {
+                    return _type;
+                }
                 return this["type"] as string;
             }
+            set
+            {
+                _type = value;
+                _typeSet = true;
+            }
+
         }
         [ConfigurationProperty("value", IsRequired = true)]
         public string Value
         {
             get
             {
+                if (_valueSet)
+                {
+                    return _value;
+                }
                 return this["value"] as string;
+            }
+            set
+            {
+                _value = value;
+                _valueSet = true;
             }
         }
     }
