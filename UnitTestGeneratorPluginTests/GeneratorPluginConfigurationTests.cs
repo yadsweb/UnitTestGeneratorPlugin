@@ -261,6 +261,8 @@ namespace UnitTestGeneratorPluginTests
             var container = generator.TransformFeature(feature, "testClass", "test");
             Assert.True(container.TestClassName.Equals("testClass"));
             Assert.True(container.TargetNamespace.Equals("test"));
+            Assert.GreaterOrEqual(container.Feature.Scenarios.Count(), 1);
+            Assert.GreaterOrEqual(container.Feature.Scenarios[0].Steps.Count(), 1);
             Assert.True(container.Feature.Scenarios[0].Steps[0].Text.Equals("I am on the <Site> site"));
             Assert.True(container.Feature.Scenarios[0].Steps[1].Text.Equals("I write hellou message"));
             Assert.True(container.Feature.Scenarios[0].Steps[2].Text.Equals("I write hellou message"));
