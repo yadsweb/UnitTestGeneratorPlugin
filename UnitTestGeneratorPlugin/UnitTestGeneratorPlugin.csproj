@@ -68,6 +68,7 @@
     <Compile Include="CustomUnitTestFeatureGenerator.cs" />
     <Compile Include="GeneratorPluginConfiguration.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="UnitTestGeneratorProviderCustomAttributes.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="App.config" />

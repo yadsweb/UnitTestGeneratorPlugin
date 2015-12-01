@@ -3,6 +3,7 @@ using TechTalk.SpecFlow.Configuration;
 using TechTalk.SpecFlow.Generator.Configuration;
 using TechTalk.SpecFlow.Generator.Plugins;
 using TechTalk.SpecFlow.Generator.UnitTestConverter;
+using TechTalk.SpecFlow.Generator.UnitTestProvider;
 using TechTalk.SpecFlow.Infrastructure;
 using UnitTestGeneratorPlugin.Generator.SpecFlowPlugin;
 
@@ -18,6 +19,7 @@ namespace UnitTestGeneratorPlugin.Generator.SpecFlowPlugin
         public void RegisterCustomizations(ObjectContainer container, SpecFlowProjectConfiguration generatorConfiguration)
         {
             container.RegisterTypeAs<CustomFeatureGeneratorProvider, IFeatureGeneratorProvider>("default");
+            container.RegisterTypeAs<UnitTestGeneratorProviderCustomAttributes, IUnitTestGeneratorProvider>();
         }
 
         public void RegisterConfigurationDefaults(SpecFlowProjectConfiguration specFlowConfiguration)
