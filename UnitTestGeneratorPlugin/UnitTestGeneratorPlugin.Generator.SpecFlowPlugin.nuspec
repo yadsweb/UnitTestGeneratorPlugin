@@ -10,6 +10,6 @@
     <copyright>Copyright 2015</copyright>
   </metadata>
  <files>
-	<file src="UnitTestGeneratorPlugin\bin\**\*.*" target="lib\net45"/>
+	<file src="\bin\**\*.*" target="lib\net45"/>
  </files>
 </package>
