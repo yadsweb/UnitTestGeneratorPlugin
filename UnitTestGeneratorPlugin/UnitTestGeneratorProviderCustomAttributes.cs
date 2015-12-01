@@ -1,4 +1,5 @@
-﻿using System.CodeDom;
+﻿using System;
+using System.CodeDom;
 using System.Collections.Generic;
 using System.Linq;
 using TechTalk.SpecFlow.Generator;
@@ -60,29 +61,7 @@ namespace UnitTestGeneratorPlugin.Generator.SpecFlowPlugin
 
         public void SetTestMethod(TestClassGenerationContext generationContext, CodeMemberMethod testMethod, string scenarioTitle)
         {
-            if (generationContext.Feature != null)
-            {
-                if (generationContext.Feature.Scenarios != null)
-                {
-                    var scenario = generationContext.Feature.Scenarios.FirstOrDefault(s => s.Title == scenarioTitle);
-
-                    if (scenario != null)
-                    {
-                        if (scenario.Tags != null)
-                        {
-                            var repeatTag = scenario.Tags.FirstOrDefault(t => t.Name.ToLower().StartsWith("repeat"));
-
-                            if (repeatTag != null)
-                            {
-                                var repeatNumber = repeatTag.Name.ToLower().Replace("repeat", "");
-
-                                _codeDomHelper.AddAttribute(testMethod, @"NUnit.Framework.RepeatAttribute", int.Parse(repeatNumber));
-                            }
-                        }
-                    }
-                }
-            }
-
+            AddAttributsFromScenarioCategories(generationContext, testMethod, scenarioTitle);
             _nunit.SetTestMethod(generationContext, testMethod, scenarioTitle);
         }
 
@@ -100,28 +79,7 @@ namespace UnitTestGeneratorPlugin.Generator.SpecFlowPlugin
         public void SetRowTest(TestClassGenerationContext generationContext, CodeMemberMethod testMethod, string scenarioTitle)
         {
 
-            if (generationContext.Feature != null)
-            {
-                if (generationContext.Feature.Scenarios != null)
-                {
-                    var scenario = generationContext.Feature.Scenarios.FirstOrDefault(s => s.Title == scenarioTitle);
-
-                    if (scenario != null)
-                    {
-                        if (scenario.Tags != null)
-                        {
-                            var repeatTag = scenario.Tags.FirstOrDefault(t => t.Name.ToLower().StartsWith("repeat"));
-
-                            if (repeatTag != null)
-                            {
-                                var repeatNumber = repeatTag.Name.ToLower().Replace("repeat", "");
-
-                                _codeDomHelper.AddAttribute(testMethod, @"NUnit.Framework.RepeatAttribute", int.Parse(repeatNumber));
-                            }
-                        }
-                    }
-                }
-            }
+            AddAttributsFromScenarioCategories(generationContext, testMethod, scenarioTitle);
             _nunit.SetRowTest(generationContext, testMethod, scenarioTitle);
         }
 
@@ -152,6 +110,37 @@ namespace UnitTestGeneratorPlugin.Generator.SpecFlowPlugin
             {
                 return _nunit.SupportsAsyncTests;
 
+            }
+        }
+        public void AddAttributsFromScenarioCategories(TestClassGenerationContext generationContext, CodeMemberMethod testMethod, string scenarioTitle)
+        {
+            if (generationContext.Feature == null) return;
+            if (generationContext.Feature.Scenarios == null) return;
+            var scenario = generationContext.Feature.Scenarios.FirstOrDefault(s => s.Title == scenarioTitle);
+            if (scenario == null) return;
+            if (scenario.Tags == null) return;
+            var nunitAttributeTags = scenario.Tags.Where(t => t.Name.ToLower().StartsWith("nunitattribute")).Select(t => t.Name).ToList();
+            if (!nunitAttributeTags.Any()) return;
+            foreach (var nunitAttributeTag in nunitAttributeTags)
+            {
+                if (nunitAttributeTag.Contains(":"))
+                {
+                    var attributeWithParameter = nunitAttributeTag.Substring(14);
+                    int number;
+                    var parseSuccess = Int32.TryParse((attributeWithParameter.Split(new[] { ":" }, new StringSplitOptions())[1]), out number);
+                    if (parseSuccess)
+                    {
+                        _codeDomHelper.AddAttribute(testMethod, @"NUnit.Framework." + attributeWithParameter.Split(new[] { ":" }, new StringSplitOptions())[0], number);
+                    }
+                    else
+                    {
+                        _codeDomHelper.AddAttribute(testMethod, @"NUnit.Framework." + attributeWithParameter.Split(new[] { ":" }, new StringSplitOptions())[0], attributeWithParameter.Split(new[] { ":" }, new StringSplitOptions())[1]);
+                    }
+                }
+                else
+                {
+                    _codeDomHelper.AddAttribute(testMethod, @"NUnit.Framework." + nunitAttributeTag.Substring(14));
+                }
             }
         }
     }
