@@ -19,7 +19,7 @@ namespace UnitTestGeneratorPlugin.Generator.SpecFlowPlugin
         public void RegisterCustomizations(ObjectContainer container, SpecFlowProjectConfiguration generatorConfiguration)
         {
             container.RegisterTypeAs<CustomFeatureGeneratorProvider, IFeatureGeneratorProvider>("default");
-            container.RegisterTypeAs<UnitTestGeneratorProviderCustomAttributes, IUnitTestGeneratorProvider>();
+            //container.RegisterTypeAs<UnitTestGeneratorProviderCustomAttributes, IUnitTestGeneratorProvider>();
         }
 
         public void RegisterConfigurationDefaults(SpecFlowProjectConfiguration specFlowConfiguration)
