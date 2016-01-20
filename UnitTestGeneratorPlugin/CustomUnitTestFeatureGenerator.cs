@@ -9,6 +9,7 @@ using log4net;
 using log4net.Appender;
 using log4net.Layout;
 using log4net.Repository.Hierarchy;
+using NUnit.Framework;
 using TechTalk.SpecFlow.Generator;
 using TechTalk.SpecFlow.Generator.Configuration;
 using TechTalk.SpecFlow.Generator.UnitTestConverter;
@@ -126,117 +127,164 @@ namespace UnitTestGeneratorPlugin.Generator.SpecFlowPlugin
                             assemblyContainingFilter = Assembly.Load(File.ReadAllBytes(filterAssemblyPath));
                         }
 
-                        var categoriesFilter = CustomeConfigurationSection.AdditionalCategoryAttributeFilter;
                         var stepsFilter = CustomeConfigurationSection.StepFilter;
-                        var testCaseAttributeFilter = CustomeConfigurationSection.AdditionalTestCaseAttributeFilter;
+                        var attributeFilter = CustomeConfigurationSection.AttributeFilter;
                         try
                         {
-                            #region Test case attributes filtering
+                            #region Attributes filtering
 
-                            if (testCaseAttributeFilter.ElementInformation.IsPresent)
+                            if (attributeFilter.ElementInformation.IsPresent)
                             {
-                                _log.Info("Test case attribute filter element is present with class name '" + testCaseAttributeFilter.Classname + "' and method '" + testCaseAttributeFilter.Method + "' properties.");
-
-                                var rawTestCaseAttribute = new List<AdditionalTestCaseAttribute>();
-
-                                _log.Info("Creating a temporal list with test case attributes which will be send to the filter method.");
-
-                                foreach (var testCaseAttribute in CustomeConfigurationSection.AdditionalTestCaseAttributes)
-                                {
-                                    _log.Info("Adding test case attribute with type '" + ((AdditionalTestCaseAttribute)testCaseAttribute).Type + "' and value '" + ((AdditionalTestCaseAttribute)testCaseAttribute).Value + " to the temporary list");
-
-                                    rawTestCaseAttribute.Add(((AdditionalTestCaseAttribute)testCaseAttribute));
-                                }
-
                                 _log.Info("Loaded filter assembly is '" + assemblyContainingFilter.GetName() + "'.");
-                                var filterType = assemblyContainingFilter.GetType(testCaseAttributeFilter.Classname);
-                                _log.Info("Test case attribute filter type is '" + filterType.Name + "' creating method info object.");
-                                var methodInfo = filterType.GetMethod(testCaseAttributeFilter.Method,
-                                    new[] { typeof(List<AdditionalTestCaseAttribute>), typeof(Scenario), typeof(ILog) });
+                                var filterType = assemblyContainingFilter.GetType(attributeFilter.Classname);
+                                _log.Info("Attribute filter type is '" + filterType.Name + "' creating method info object.");
+                                var methodInfo = filterType.GetMethod(attributeFilter.Method,
+                                    new[] { typeof(GeneratorPluginConfiguration), typeof(Scenario), typeof(ILog) });
                                 var o = Activator.CreateInstance(filterType);
-                                var filteredTestCaseAttributes =
-                                    (List<GherkinTableRow>)
-                                        methodInfo.Invoke(o, new object[] { rawTestCaseAttribute, scenario, _log });
-                                _log.Info("Test case attribute rows returned by the filter method are '" + filteredTestCaseAttributes.Count + "'.");
-                                if (filteredTestCaseAttributes.Count > 0)
+                                var filteredAttributes = (List<Attribute>)methodInfo.Invoke(o, new object[] { CustomeConfigurationSection, scenario, _log });
+                                _log.Info("Attribute returned by the filter method are '" + filteredAttributes.Count + "'.");
+                                if (filteredAttributes.Count > 0)
                                 {
-                                    var scenarioOutline = scenario as ScenarioOutline ?? new ScenarioOutline
+                                    var filteredCategoryAttributes = new List<AdditionalCategoryAttribute>();
+                                    var filteredTestCaseAttributes = new List<TestCaseAttribute>();
+
+                                    foreach (var filteredAttribute in filteredAttributes)
                                     {
-                                        Description = scenario.Description,
-                                        Keyword = scenario.Keyword,
-                                        Title = scenario.Title,
-                                        Tags = scenario.Tags,
-                                        Steps = scenario.Steps,
-                                        Examples =
-                                            new Examples(new ExampleSet
-                                            {
-                                                Table =
-                                                    new GherkinTable(new GherkinTableRow(new GherkinTableCell[0]),
-                                                        new GherkinTableRow[0])
-                                            })
-                                    };
-
-                                    var tableContents = scenarioOutline.Examples.ExampleSets.First().Table.Body.ToList();
-
-                                    _log.Info(tableContents.Count + " test case attributes retrieved from scenario with name '" + scenario.Title + "'");
-                                    _log.Info("Clearing the content of retrieve table.");
-                                    tableContents.Clear();
-
-                                    var headerRow = scenarioOutline.Examples.ExampleSets.First().Table.Header.Cells.ToList();
-                                    var categoryTypes = new List<string>();
-                                    var tempAttribute = new List<string>();
-
-                                    foreach (var testCaseAttributeRow in filteredTestCaseAttributes)
-                                    {
-                                        _log.Info("Trying to add test case attribute row with cells: ");
-
-                                        foreach (var cell in testCaseAttributeRow.Cells)
+                                        if (filteredAttribute.GetType() == typeof(CategoryAttribute))
                                         {
-                                            tempAttribute.Add(cell.Value);
-                                            _log.Info(cell.Value);
+                                            var category = filteredAttribute as CategoryAttribute;
+                                            filteredCategoryAttributes.Add(category.Name.Contains(":-:")
+                                                ? new AdditionalCategoryAttribute
+                                                {
+                                                    Type =
+                                                        category.Name.Split(new[] { ":-:" }, StringSplitOptions.None)[0],
+                                                    Value =
+                                                        category.Name.Split(new[] { ":-:" }, StringSplitOptions.None)[1]
+                                                }
+                                                : new AdditionalCategoryAttribute
+                                                {
+                                                    Type = "unknown",
+                                                    Value = category.Name
+                                                });
+                                            continue;
                                         }
-
-                                        _log.Info("to scenario with name '" + scenario.Title + "'");
-
-                                        tableContents.Add(testCaseAttributeRow);
-
+                                        if (filteredAttribute.GetType() == typeof(TestCaseAttribute))
+                                        {
+                                            filteredTestCaseAttributes.Add(filteredAttribute as TestCaseAttribute);
+                                            continue;
+                                        }
+                                        _log.Info("Attribute with type '" + filteredAttribute.GetType() + "' didn't match any of expected types 'CategoryAttribute' or 'TestCaseAttribute' no actions will be taken");
                                     }
 
-                                    foreach (var testCaseAttribute in rawTestCaseAttribute)
+                                    if (filteredCategoryAttributes.Count > 0)
                                     {
-                                        foreach (var categoryValue in tempAttribute)
+                                        _log.Info("Clearing all category attributes for scenario '" + scenario.Title + "'");
+                                        scenario.Tags = scenario.Tags ?? new Tags();
+                                        scenario.Tags.Clear();
+                                        AddCategoryAttributes(filteredCategoryAttributes, scenario);
+                                    }
+                                    else
+                                    {
+                                        _log.Info("Categories returned by the filter type are 0 so no actions will be taken.");
+                                    }
+
+                                    if (filteredTestCaseAttributes.Count > 0)
+                                    {
+                                        var rawTestCaseAttribute = new List<AdditionalTestCaseAttribute>();
+
+                                        _log.Info("Creating a temporal list with test case attributes which will be send to the filter method.");
+
+                                        foreach (var testCaseAttribute in CustomeConfigurationSection.AdditionalTestCaseAttributes)
                                         {
-                                            if (testCaseAttribute.Value.Contains(categoryValue) && !categoryTypes.Contains(testCaseAttribute.Type))
+                                            _log.Info("Adding test case attribute with type '" + ((AdditionalTestCaseAttribute)testCaseAttribute).Type + "' and value '" + ((AdditionalTestCaseAttribute)testCaseAttribute).Value + " to the temporary list");
+
+                                            rawTestCaseAttribute.Add(((AdditionalTestCaseAttribute)testCaseAttribute));
+                                        }
+
+
+                                        var scenarioOutline = scenario as ScenarioOutline ?? new ScenarioOutline
+                                        {
+                                            Description = scenario.Description,
+                                            Keyword = scenario.Keyword,
+                                            Title = scenario.Title,
+                                            Tags = scenario.Tags,
+                                            Steps = scenario.Steps,
+                                            Examples =
+                                                new Examples(new ExampleSet
+                                                {
+                                                    Table =
+                                                        new GherkinTable(new GherkinTableRow(new GherkinTableCell[0]),
+                                                            new GherkinTableRow[0])
+                                                })
+                                        };
+
+                                        var tableContents = scenarioOutline.Examples.ExampleSets.First().Table.Body.ToList();
+
+                                        _log.Info(tableContents.Count + " test case attributes retrieved from scenario with name '" + scenario.Title + "'");
+                                        _log.Info("Clearing the content of retrieve table.");
+                                        tableContents.Clear();
+
+                                        var headerRow = scenarioOutline.Examples.ExampleSets.First().Table.Header.Cells.ToList();
+                                        var categoryTypes = new List<string>();
+                                        var tempAttribute = new List<string>();
+
+                                        foreach (var testCaseAttribute in filteredTestCaseAttributes)
+                                        {
+                                            _log.Info("Trying to add test case attribute row with cells: ");
+                                            var cells = new List<GherkinTableCell>();
+                                            foreach (var argument in testCaseAttribute.Arguments)
                                             {
-                                                _log.Info("Adding '" + testCaseAttribute.Type + "' to the header row cells of scenario '" + scenario.Title + "'.");
-                                                categoryTypes.Add(testCaseAttribute.Type);
-                                                headerRow.Add(new GherkinTableCell(testCaseAttribute.Type));
+                                                tempAttribute.Add(argument.ToString());
+                                                _log.Info(argument.ToString());
+                                                cells.Add(new GherkinTableCell(argument.ToString()));
+                                            }
+
+                                            _log.Info("to scenario with name '" + scenario.Title + "'");
+
+                                            tableContents.Add(new GherkinTableRow(cells.ToArray()));
+
+                                        }
+
+                                        foreach (var testCaseAttribute in rawTestCaseAttribute)
+                                        {
+                                            foreach (var categoryValue in tempAttribute)
+                                            {
+                                                if (testCaseAttribute.Value.Contains(categoryValue) && !categoryTypes.Contains(testCaseAttribute.Type))
+                                                {
+                                                    _log.Info("Adding '" + testCaseAttribute.Type + "' to the header row cells of scenario '" + scenario.Title + "'.");
+                                                    categoryTypes.Add(testCaseAttribute.Type);
+                                                    headerRow.Add(new GherkinTableCell(testCaseAttribute.Type));
+                                                }
                                             }
                                         }
-                                    }
 
-                                    scenarioOutline.Examples.ExampleSets.First().Table.Header.Cells = headerRow.ToArray();
-                                    _log.Info(tableContents.Count + " test case attributes retrieved from scenario with name '" + scenario.Title + "' after updating.");
+                                        scenarioOutline.Examples.ExampleSets.First().Table.Header.Cells = headerRow.ToArray();
+                                        _log.Info(tableContents.Count + " test case attributes retrieved from scenario with name '" + scenario.Title + "' after updating.");
 
-                                    scenarioOutline.Examples.ExampleSets.First().Table.Body = tableContents.ToArray();
+                                        scenarioOutline.Examples.ExampleSets.First().Table.Body = tableContents.ToArray();
 
-                                    for (var counter = 0; counter < feature.Scenarios.Count(); counter++)
-                                    {
-                                        if (feature.Scenarios[counter].Title.Equals(scenario.Title))
+                                        for (var counter = 0; counter < feature.Scenarios.Count(); counter++)
                                         {
-                                            _log.Info("Scenario with name '" + scenarioOutline.Title + "' should be on '" + counter + "' place in the list of scenarios for feature '" + feature.Title + "'.");
-                                            feature.Scenarios[counter] = scenarioOutline;
+                                            if (feature.Scenarios[counter].Title.Equals(scenario.Title))
+                                            {
+                                                _log.Info("Scenario with name '" + scenarioOutline.Title + "' should be on '" + counter + "' place in the list of scenarios for feature '" + feature.Title + "'.");
+                                                feature.Scenarios[counter] = scenarioOutline;
+                                            }
                                         }
+
                                     }
+                                    else
+                                    {
+                                        _log.Info("Test case attribute returned by the filter type are 0 so no actions will be taken.");
+                                    }
+
                                 }
-                                else
-                                {
-                                    _log.Info("Test case attributes returned by the filter type are 0 so no actions will be taken.");
-                                }
+
                             }
                             else
                             {
-                                _log.Info("Test case attribute filter element is not present.");
+                                _log.Info("Attribute filter element is not present, adding all test case and categories attributes.");
+                                AddCategoryAttributes(null, scenario);
                                 AddTestCaseAttributes(null, scenario, feature);
                             }
 
@@ -244,60 +292,11 @@ namespace UnitTestGeneratorPlugin.Generator.SpecFlowPlugin
                         }
                         catch (Exception e)
                         {
-                            _log.Error("When trying to filter test case attributes by filter with class name '" + testCaseAttributeFilter.Classname + "' and method name '" + testCaseAttributeFilter.Method + "'!");
+                            _log.Error("When trying to filter attributes by filter with class name '" + attributeFilter.Classname + "' and method name '" + attributeFilter.Method + "'!");
                             _log.Error(e.Message);
                             _log.Error(e.StackTrace);
                         }
-                        try
-                        {
-                            #region Categories filtering
 
-                            if (categoriesFilter.ElementInformation.IsPresent)
-                            {
-                                _log.Info("Categories filter element is present with class name '" + categoriesFilter.Classname + "' and method '" + categoriesFilter.Method + "' properties.");
-                                var rawCategories = new List<AdditionalCategoryAttribute>();
-                                _log.Info("Creating a temporal list with category attributes which will be send to the filter method.");
-                                foreach (var categoryAttribute in CustomeConfigurationSection.AdditionalCategoryAttributes)
-                                {
-                                    _log.Info("Adding category with type '" + ((AdditionalCategoryAttribute)categoryAttribute).Type + "' and value '" + ((AdditionalCategoryAttribute)categoryAttribute).Value + " to the temporary list");
-                                    rawCategories.Add(((AdditionalCategoryAttribute)categoryAttribute));
-                                }
-                                _log.Info("Loaded filter assembly is '" + assemblyContainingFilter.GetName() + "'.");
-                                var filterType = assemblyContainingFilter.GetType(categoriesFilter.Classname);
-                                _log.Info("Category filter type is '" + filterType.Name + "'.");
-                                var methodInfo = filterType.GetMethod(categoriesFilter.Method,
-                                    new[] { typeof(List<AdditionalCategoryAttribute>), typeof(Scenario), typeof(ILog) });
-                                var o = Activator.CreateInstance(filterType);
-                                var filteredCategories =
-                                    (List<AdditionalCategoryAttribute>)
-                                        methodInfo.Invoke(o, new object[] { rawCategories, scenario, _log });
-                                _log.Info("Categories returned by the filter method are '" + filteredCategories.Count + "'.");
-                                if (filteredCategories.Count > 0)
-                                {
-                                    _log.Info("Clearing all category attributes for scenario '" + scenario.Title + "'");
-                                    scenario.Tags = scenario.Tags ?? new Tags();
-                                    scenario.Tags.Clear();
-                                    AddCategoryAttributes(filteredCategories, scenario);
-                                }
-                                else
-                                {
-                                    _log.Info("Categories returned by the filter type are 0 so no actions will be taken.");
-                                }
-                            }
-                            else
-                            {
-                                _log.Info("Category filter element is not present.");
-                                AddCategoryAttributes(null, scenario);
-                            }
-
-                            #endregion
-                        }
-                        catch (Exception e)
-                        {
-                            _log.Error("When trying to filter category attributes by filter with class name '" + categoriesFilter.Classname + "' and method name '" + categoriesFilter.Method + "'!");
-                            _log.Error(e.Message);
-                            _log.Error(e.StackTrace);
-                        }
                         try
                         {
                             #region Steps filtering
@@ -305,22 +304,15 @@ namespace UnitTestGeneratorPlugin.Generator.SpecFlowPlugin
                             if (stepsFilter.ElementInformation.IsPresent)
                             {
                                 _log.Info("Steps filter element is present with class name '" + stepsFilter.Classname + "' and method '" + stepsFilter.Method + "' properties.");
-                                var rawSteps = new List<Step>();
-                                _log.Info("Creating a temporal list with steps which will be send to the filter method.");
-                                foreach (var step in CustomeConfigurationSection.Steps)
-                                {
-                                    _log.Info("Adding step with type '" + ((Step)step).Type + "' and value '" + ((Step)step).Value + " to the temporary list");
-                                    rawSteps.Add(((Step)step));
-                                }
                                 _log.Info("Loaded filter assembly is '" + assemblyContainingFilter.GetName() + "'.");
                                 var filterType = assemblyContainingFilter.GetType(stepsFilter.Classname);
                                 _log.Info("Step filter type is '" + filterType.Name + "'.");
                                 var methodInfo = filterType.GetMethod(stepsFilter.Method,
-                                    new[] { typeof(List<Step>), typeof(Scenario), typeof(ILog) });
+                                    new[] { typeof(GeneratorPluginConfiguration), typeof(Scenario), typeof(ILog) });
                                 var o = Activator.CreateInstance(filterType);
                                 var filteredSteps =
                                     (List<Step>)
-                                        methodInfo.Invoke(o, new object[] { rawSteps, scenario, _log });
+                                        methodInfo.Invoke(o, new object[] { CustomeConfigurationSection, scenario, _log });
                                 _log.Info("Steps returned by the filter method are '" + filteredSteps.Count + "'.");
                                 if (filteredSteps.Count > 0)
                                 {

@@ -67,17 +67,17 @@ namespace UnitTestGeneratorPlugin.Generator.SpecFlowPlugin
             get { return this["FilterAssembly"] as FilterAssembly; }
         }
 
-        [ConfigurationProperty("AdditionalCategoryAttributeFilter")]
-        public AdditionalCategoryAttributeFilter AdditionalCategoryAttributeFilter
+        [ConfigurationProperty("AttributeFilter")]
+        public AttributeFilter AttributeFilter
         {
-            get { return this["AdditionalCategoryAttributeFilter"] as AdditionalCategoryAttributeFilter; }
+            get { return this["AttributeFilter"] as AttributeFilter; }
         }
 
-        [ConfigurationProperty("AdditionalTestCaseAttributeFilter")]
-        public AdditionalTestCaseAttributeFilter AdditionalTestCaseAttributeFilter
-        {
-            get { return this["AdditionalTestCaseAttributeFilter"] as AdditionalTestCaseAttributeFilter; }
-        }
+        //[ConfigurationProperty("AdditionalTestCaseAttributeFilter")]
+        //public AdditionalTestCaseAttributeFilter AdditionalTestCaseAttributeFilter
+        //{
+        //    get { return this["AdditionalTestCaseAttributeFilter"] as AdditionalTestCaseAttributeFilter; }
+        //}
 
         [ConfigurationProperty("StepFilter")]
         public StepFilter StepFilter
@@ -100,7 +100,7 @@ namespace UnitTestGeneratorPlugin.Generator.SpecFlowPlugin
         }
     }
 
-    public class AdditionalCategoryAttributeFilter : ConfigurationElement
+    public class AttributeFilter : ConfigurationElement
     {
 
         [ConfigurationProperty("classname", IsRequired = true)]
