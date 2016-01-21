@@ -185,7 +185,8 @@ namespace UnitTestGeneratorPlugin.Generator.SpecFlowPlugin
                                     }
                                     else
                                     {
-                                        _log.Info("Categories returned by the filter type are 0 so no actions will be taken.");
+                                        _log.Info("Categories returned by the filter type are 0 so default behavior will add all additional categories from plugin configuration.");
+                                        AddCategoryAttributes(filteredCategoryAttributes, scenario);
                                     }
 
                                     if (filteredTestCaseAttributes.Count > 0)
@@ -275,7 +276,8 @@ namespace UnitTestGeneratorPlugin.Generator.SpecFlowPlugin
                                     }
                                     else
                                     {
-                                        _log.Info("Test case attribute returned by the filter type are 0 so no actions will be taken.");
+                                        _log.Info("Test case attribute returned by the filter type are 0 so default behavior will add all additional test cases from plugin configuration.");
+                                        AddTestCaseAttributes(null, scenario, feature);
                                     }
 
                                 }
