@@ -186,7 +186,7 @@ namespace UnitTestGeneratorPlugin.Generator.SpecFlowPlugin
                                     else
                                     {
                                         _log.Info("Categories returned by the filter type are 0 so default behavior will add all additional categories from plugin configuration.");
-                                        AddCategoryAttributes(filteredCategoryAttributes, scenario);
+                                        AddCategoryAttributes(null, scenario);
                                     }
 
                                     if (filteredTestCaseAttributes.Count > 0)
